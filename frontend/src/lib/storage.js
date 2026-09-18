@@ -165,20 +165,7 @@ export async function resolveMediaUrls(items) {
 }
 
 /**
- * Minimal session reader (no auth UI in BIDZONE yet). Used by the Create
- * Auction page to gate uploads behind a real authenticated Supabase user.
+ * Minimal session reader is now provided by the AuthProvider context
+ * (@/context/AuthContext). Storage helpers below are auth-agnostic: they read
+ * the session from the supabase-js client at call time.
  */
-export function useSupabaseSession() {
-    const q = useQuery({
-        queryKey: ["supabase-session"],
-        enabled: Boolean(supabase),
-        queryFn: async () => {
-            const { data } = await supabase.auth.getSession();
-            return (data && data.session) || null;
-        },
-    });
-    return {
-        session: supabase ? q.data || null : null,
-        isLoading: supabase ? q.isPending : false,
-    };
-}

@@ -2,6 +2,7 @@ import { Gavel, LogIn, LockKeyhole, TimerOff } from "lucide-react";
 import { toast } from "sonner";
 import { fmtAmount } from "@/components/auction/format";
 import { useMinimumNextBid } from "@/hooks/useAuctionRoom";
+import { useAuth } from "@/context/AuthContext";
 
 export function BiddingPanel({ auction }) {
     const minNext = useMinimumNextBid(auction);
@@ -56,6 +57,7 @@ export function BiddingPanel({ auction }) {
 }
 
 function BidCTA({ isLive, status }) {
+    const auth = useAuth();
     if (status === "ENDED" || status === "CANCELLED") {
         return (
             <button
@@ -85,17 +87,22 @@ function BidCTA({ isLive, status }) {
         <button
             type="button"
             data-testid="auction-bid-cta"
-            onClick={() =>
-                toast("Sign in to place your bid", {
+            onClick={() => {
+                const { isAuthed, openAuthModal } = auth;
+                if (!isAuthed) {
+                    openAuthModal({ returnTo: window.location.pathname });
+                    return;
+                }
+                toast("Bidding unlocks with wallet integration", {
                     description:
                         "Bidding will unlock once the wallet integration is available.",
-                })
-            }
+                });
+            }}
             className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bz-btn-primary px-5 py-3.5 text-sm font-semibold"
         >
             <Gavel className="h-4 w-4" />
-            <span>Sign In to Bid</span>
-            <LogIn className="h-4 w-4 opacity-70" />
+            <span>{auth.isAuthed ? "Place Bid" : "Sign In to Bid"}</span>
+            {!auth.isAuthed && <LogIn className="h-4 w-4 opacity-70" />}
         </button>
     );
 }

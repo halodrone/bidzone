@@ -3,18 +3,23 @@ import { Toaster } from "sonner";
 import Home from "@/pages/Home";
 import AuctionRoom from "@/pages/AuctionRoom";
 import CreateAuction from "@/pages/CreateAuction";
+import AuthCallback from "@/pages/AuthCallback";
+import { AuthProvider } from "@/context/AuthContext";
 import "@/App.css";
 
 function App() {
     return (
         <div className="App dark">
             <BrowserRouter>
-                <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/auction/:auctionId" element={<AuctionRoom />} />
-                    <Route path="/create" element={<CreateAuction />} />
-                    <Route path="*" element={<Home />} />
-                </Routes>
+                <AuthProvider>
+                    <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/auction/:auctionId" element={<AuctionRoom />} />
+                        <Route path="/create" element={<CreateAuction />} />
+                        <Route path="/auth/callback" element={<AuthCallback />} />
+                        <Route path="*" element={<Home />} />
+                    </Routes>
+                </AuthProvider>
             </BrowserRouter>
             <Toaster
                 theme="dark"

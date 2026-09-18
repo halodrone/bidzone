@@ -6,8 +6,8 @@ import { Header } from "@/components/home/Header";
 import { Footer } from "@/components/home/Footer";
 import { MediaUploader } from "@/components/create/MediaUploader";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { useAuth } from "@/context/AuthContext";
 import {
-    useSupabaseSession,
     uploadAuctionMedia,
     deleteAuctionMedia,
 } from "@/lib/storage";
@@ -75,7 +75,7 @@ export default function CreateAuction() {
 }
 
 function CreateForm() {
-    const { session, isLoading } = useSupabaseSession();
+    const { session, isLoading, openAuthModal } = useAuth();
     const navigate = useNavigate();
     const qc = useQueryClient();
 
@@ -215,7 +215,10 @@ function CreateForm() {
             <Notice
                 icon={LogIn}
                 title="Sign in required"
-                body="You need a BIDZONE account session to create an auction and upload media."
+                body="You need a BIDZONE identity to create an auction and upload media."
+                actionLabel="Sign in with Google"
+                onAction={() => openAuthModal({ returnTo: "/create" })}
+                testId="create-signin-cta"
             />
         );
     }
@@ -374,15 +377,26 @@ function Field({ label, children }) {
     );
 }
 
-function Notice({ icon: Icon, title, body }) {
+function Notice({ icon: Icon, title, body, actionLabel, onAction, testId }) {
     return (
         <div className="bz-card mx-auto flex max-w-md flex-col items-center gap-3 p-10 text-center">
             <Icon className="h-8 w-8 text-white/40" />
             <h2 className="font-display text-xl font-semibold">{title}</h2>
             <p className="text-sm text-white/50">{body}</p>
-            <Link to="/" className="bz-btn-primary mt-2 rounded-full px-5 py-2.5 text-sm">
-                Back to Home
-            </Link>
+            {actionLabel && onAction ? (
+                <button
+                    type="button"
+                    data-testid={testId || "notice-action"}
+                    onClick={onAction}
+                    className="bz-btn-primary mt-2 rounded-full px-5 py-2.5 text-sm"
+                >
+                    {actionLabel}
+                </button>
+            ) : (
+                <Link to="/" className="bz-btn-primary mt-2 rounded-full px-5 py-2.5 text-sm">
+                    Back to Home
+                </Link>
+            )}
         </div>
     );
 }

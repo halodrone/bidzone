@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
     Search,
     Bell,
@@ -8,7 +8,10 @@ import {
     Sparkles,
     Wallet as WalletIcon,
     ChevronRight,
+    LogOut,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { LOGOUT } from "@/constants/testIds";
 
 const NAV = [
     { label: "Home", href: "/" },
@@ -131,19 +134,108 @@ export function Header() {
 }
 
 function WalletButton() {
-    // Placeholder pending real embedded-wallet integration.
-    // Never displays a fabricated balance.
+    const { isAuthed, profile, user, openAuthModal, signOut } = useAuth();
+    const location = useLocation();
+
+    if (!isAuthed) {
+        return (
+            <button
+                type="button"
+                data-testid="header-wallet"
+                onClick={() =>
+                    openAuthModal({ returnTo: location.pathname })
+                }
+                className="hidden sm:inline-flex items-center gap-2 h-10 pl-3 pr-4 rounded-full bz-btn-secondary text-sm"
+            >
+                <WalletIcon className="h-4 w-4 text-[hsl(var(--bz-purple))]" />
+                <span className="font-medium">Sign In</span>
+                <span className="hidden md:inline text-white/40">/ Get Started</span>
+            </button>
+        );
+    }
+
+    const name =
+        (profile && (profile.display_name || profile.username)) ||
+        (user && user.email ? user.email.split("@")[0] : "You");
+    const initial = name.slice(0, 1).toUpperCase();
+
     return (
-        <button
-            type="button"
-            data-testid="header-wallet"
-            className="hidden sm:inline-flex items-center gap-2 h-10 pl-3 pr-4 rounded-full bz-btn-secondary text-sm"
-            title="Wallet placeholder — embedded wallet integration coming soon"
+        <div
+            data-testid="header-user-chip"
+            className="hidden sm:inline-flex items-center gap-2 h-10 pl-1.5 pr-2 rounded-full bz-btn-secondary text-sm"
         >
-            <WalletIcon className="h-4 w-4 text-[hsl(var(--bz-purple))]" />
-            <span className="font-medium">Sign In</span>
-            <span className="hidden md:inline text-white/40">/ Get Started</span>
-        </button>
+            <span className="h-7 w-7 overflow-hidden rounded-full bg-[hsl(var(--bz-surface))] border border-white/10 flex items-center justify-center text-[11px] text-white/80">
+                {profile && profile.avatar_url ? (
+                    <img
+                        src={profile.avatar_url}
+                        alt=""
+                        className="h-full w-full object-cover"
+                    />
+                ) : (
+                    initial
+                )}
+            </span>
+            <span className="max-w-[120px] truncate font-medium">{name}</span>
+            <button
+                type="button"
+                data-testid={LOGOUT.button}
+                aria-label="Sign out"
+                title="Sign out"
+                onClick={() => signOut()}
+                className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/10 text-white/60 hover:text-white hover:border-white/25 transition"
+            >
+                <LogOut className="h-3.5 w-3.5" />
+            </button>
+        </div>
+    );
+}
+
+function MobileAuthSlot() {
+    const { isAuthed, profile, user, openAuthModal, signOut } = useAuth();
+
+    if (!isAuthed) {
+        return (
+            <>
+                <button
+                    type="button"
+                    data-testid="mobile-nav-signin"
+                    onClick={() => openAuthModal({ returnTo: "/" })}
+                    className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-full bz-btn-primary text-sm font-semibold"
+                >
+                    Sign In / Get Started
+                </button>
+                <p className="text-[11px] text-white/40 mt-3 text-center">
+                    One identity for bidding and selling — Google sign-in.
+                </p>
+            </>
+        );
+    }
+
+    const name =
+        (profile && (profile.display_name || profile.username)) ||
+        (user && user.email ? user.email.split("@")[0] : "You");
+
+    return (
+        <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3">
+                <span className="h-9 w-9 overflow-hidden rounded-full bg-[hsl(var(--bz-surface))] border border-white/10 flex items-center justify-center text-xs text-white/80">
+                    {profile && profile.avatar_url ? (
+                        <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                        name.slice(0, 1).toUpperCase()
+                    )}
+                </span>
+                <span className="text-sm font-medium truncate">{name}</span>
+            </div>
+            <button
+                type="button"
+                data-testid={LOGOUT.button}
+                onClick={() => signOut()}
+                className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-full bz-btn-secondary text-sm"
+            >
+                <LogOut className="h-4 w-4" /> Sign Out
+            </button>
+        </div>
     );
 }
 
@@ -188,16 +280,7 @@ function MobileNav({ onClose }) {
                     ))}
                 </nav>
                 <div className="mt-8 pt-6 border-t border-white/[0.06]">
-                    <button
-                        type="button"
-                        data-testid="mobile-nav-signin"
-                        className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-full bz-btn-primary text-sm font-semibold"
-                    >
-                        Sign In / Get Started
-                    </button>
-                    <p className="text-[11px] text-white/40 mt-3 text-center">
-                        Embedded wallet — no seed phrases, no extensions.
-                    </p>
+                    <MobileAuthSlot />
                 </div>
             </div>
         </div>
