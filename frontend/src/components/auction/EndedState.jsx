@@ -1,6 +1,11 @@
-import { Trophy, PackageOpen, Crown } from "lucide-react";
+import { useState } from "react";
+import { Trophy, PackageOpen, Crown, Loader2, ExternalLink } from "lucide-react";
+import { toast } from "sonner";
 import { useAuctionBids } from "@/hooks/useAuctionRoom";
 import { fmtAmount, shortAddr, timeAgo } from "@/components/auction/format";
+import { useWallet } from "@/context/WalletContext";
+import { isOnchainAvailable, settleAuctionOnchain, toExplorerTx } from "@/lib/bidzoneAuction";
+import { MONAD } from "@/lib/monad";
 
 /**
  * Ended-state banner. Only renders when auction.status === 'ENDED'.
@@ -91,11 +96,77 @@ export function EndedState({ auction }) {
                         </div>
                     </dl>
                     <p className="mt-4 text-[11px] text-white/40">
-                        Settlement (2.5% platform / 97.5% seller) will complete once the
-                        Monad escrow layer is live.
+                        Settlement pays 97.5% to the seller and 2.5% to the BIDZONE treasury.
                     </p>
+                    <SettleAction auction={auction} />
                 </div>
             </div>
         </section>
+    );
+}
+
+/**
+ * On-chain settlement trigger. Visible whenever Phase 6.5 is configured
+ * AND the on-chain auction id exists on the DB row. Any wallet can pay
+ * the gas to settle — the contract enforces winner/fee split.
+ */
+function SettleAction({ auction }) {
+    const { privyWallet, status: walletStatus } = useWallet();
+    const [busy, setBusy] = useState(false);
+    const [txHash, setTxHash] = useState(null);
+
+    const isConfigured =
+        isOnchainAvailable() &&
+        auction.contract_auction_id &&
+        walletStatus === "ready" &&
+        privyWallet;
+    if (!isConfigured) return null;
+
+    async function settle() {
+        setBusy(true);
+        try {
+            const { hash, receipt } = await settleAuctionOnchain({
+                wallet: privyWallet,
+                uuid: auction.id,
+            });
+            setTxHash(hash);
+            if (receipt.status !== "success") throw new Error("Settlement reverted on-chain");
+            toast.success("Auction settled on-chain", {
+                description: "Seller received 97.5%, treasury 2.5%.",
+            });
+        } catch (e) {
+            toast.error("Settlement failed", {
+                description: (e && (e.shortMessage || e.message)) || "See wallet response.",
+            });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+                type="button"
+                data-testid="settle-onchain"
+                disabled={busy}
+                onClick={settle}
+                className="inline-flex items-center gap-2 rounded-full bz-btn-primary px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
+            >
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                Settle on-chain
+            </button>
+            {txHash && (
+                <a
+                    href={toExplorerTx(txHash)}
+                    target="_blank"
+                    rel="noreferrer"
+                    data-testid="settle-tx-link"
+                    className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white"
+                >
+                    <ExternalLink className="h-3 w-3" />
+                    View on {MONAD.networkName}
+                </a>
+            )}
+        </div>
     );
 }

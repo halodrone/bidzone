@@ -214,24 +214,30 @@ export function compareDecimals(a, b, scale = 18) {
 }
 
 /**
- * Phase 6.4 — submit an APPLICATION-LEVEL bid (no blockchain transaction).
+ * Phase 6.4 / 6.5 — submit an APPLICATION-LEVEL or ON-CHAIN bid.
  * The server (tg_validate_bid + tg_after_bid_insert) remains fully
- * authoritative: LIVE/window/seller/min-increment validation, current_bid
- * update, anti-sniping extension, and outbid/won notifications all happen
- * inside the database. The client never touches current_bid/status/end_time.
+ * authoritative for the off-chain database: LIVE/window/seller/min-increment
+ * validation, current_bid update, anti-sniping extension, and outbid/won
+ * notifications all happen inside the database. The client never touches
+ * current_bid/status/end_time.
+ *
+ * When Phase 6.5 on-chain path is used, the caller passes the confirmed
+ * transaction hash so the bid row is honestly linked to its on-chain twin.
  */
-export async function submitBid({ auctionId, bidderId, amount, walletAddress }) {
+export async function submitBid({ auctionId, bidderId, amount, walletAddress, transactionHash }) {
     if (!supabase) throw new Error("Supabase is not configured");
+    const payload = {
+        auction_id: auctionId,
+        bidder_id: bidderId,
+        wallet_address: walletAddress || null,
+        amount,
+        status: "ACTIVE",
+    };
+    if (transactionHash) payload.transaction_hash = transactionHash;
     const { data, error } = await supabase
         .from("bids")
-        .insert({
-            auction_id: auctionId,
-            bidder_id: bidderId,
-            wallet_address: walletAddress || null,
-            amount,
-            status: "ACTIVE",
-        })
-        .select("id, amount, status, created_at")
+        .insert(payload)
+        .select("id, amount, status, created_at, transaction_hash")
         .single();
     if (error) {
         // Surface the database's own validation messages (e.g.

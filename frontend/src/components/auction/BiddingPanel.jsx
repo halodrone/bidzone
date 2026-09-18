@@ -1,11 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Gavel, LogIn, LockKeyhole, TimerOff, Wallet as WalletIcon, Loader2 } from "lucide-react";
+import { Gavel, LogIn, LockKeyhole, TimerOff, Wallet as WalletIcon, Loader2, ExternalLink, Coins } from "lucide-react";
 import { toast } from "sonner";
 import { fmtAmount } from "@/components/auction/format";
 import { useMinimumNextBid, compareDecimals, submitBid } from "@/hooks/useAuctionRoom";
 import { useAuth } from "@/context/AuthContext";
 import { useWallet } from "@/context/WalletContext";
+import {
+    isOnchainAvailable,
+    placeBidOnchain,
+    withdrawRefundOnchain,
+    readRefund,
+    toExplorerTx,
+    fromWei,
+} from "@/lib/bidzoneAuction";
+import { MONAD } from "@/lib/monad";
 
 /**
  * Phase 6.4 — real application-level bidding.
@@ -85,24 +94,29 @@ export function BiddingPanel({ auction }) {
     );
 }
 
-function walletHint(walletStatus) {
+function walletHint(walletStatus, onchainOn) {
     if (walletStatus === "unavailable") {
-        return "Wallet pending — bids are application-level until the embedded wallet connects (Phase 6.5).";
+        return onchainOn
+            ? "Wallet unavailable — sign in and provision your embedded wallet to bid on-chain."
+            : "Wallet pending — bids are application-level until the embedded wallet connects (Phase 6.5).";
     }
-    if (walletStatus === "provisioning") {
-        return "Setting up your embedded wallet…";
-    }
-    if (walletStatus === "error") {
-        return "Wallet setup failed — bidding continues at application level.";
-    }
-    return "Application-level bid — onchain escrow activates in Phase 6.5.";
+    if (walletStatus === "provisioning") return "Setting up your embedded wallet…";
+    if (walletStatus === "error") return "Wallet setup failed — bidding paused.";
+    return onchainOn
+        ? "On-chain bid — your MON is escrowed by the BIDZONE contract until settlement."
+        : "Application-level bid — onchain escrow activates in Phase 6.5.";
 }
 
 function BidForm({ auction, minNext, walletStatus }) {
     const { session, profile } = useAuth();
+    const { privyWallet, address: walletAddress, refreshBalance } = useWallet();
     const qc = useQueryClient();
     const [amount, setAmount] = useState(() => (minNext ? String(minNext) : ""));
-    const [submitting, setSubmitting] = useState(false);
+    const [phase, setPhase] = useState("idle"); // idle | signing | pending | confirmed
+    const [lastTxHash, setLastTxHash] = useState(null);
+    const submitting = phase !== "idle" && phase !== "confirmed";
+    const onchainOn = isOnchainAvailable();
+    const canOnchain = onchainOn && walletStatus === "ready" && privyWallet;
 
     async function placeBid() {
         if (submitting) return;
@@ -117,7 +131,50 @@ function BidForm({ auction, minNext, walletStatus }) {
             });
             return;
         }
-        setSubmitting(true);
+
+        // On-chain path: contract configured AND wallet ready.
+        if (canOnchain) {
+            let txHash = null;
+            try {
+                setPhase("signing");
+                const { hash, receipt } = await placeBidOnchain({
+                    wallet: privyWallet,
+                    uuid: auction.id,
+                    bidMon: value,
+                });
+                txHash = hash;
+                setLastTxHash(hash);
+                if (receipt.status !== "success") throw new Error("Transaction failed on-chain");
+                setPhase("pending");
+
+                // Mirror the confirmed bid off-chain (server triggers still enforce rules).
+                await submitBid({
+                    auctionId: auction.id,
+                    bidderId: session.user.id,
+                    amount: value,
+                    walletAddress: walletAddress || (profile ? profile.wallet_address : null),
+                    transactionHash: hash,
+                });
+                setPhase("confirmed");
+                toast.success(`On-chain bid confirmed — ${fmtAmount(value)} MON`, {
+                    description: "Escrow held by BIDZONE contract until settlement.",
+                });
+                setAmount("");
+                refreshBalance();
+                qc.invalidateQueries({ queryKey: ["auction", auction.id] });
+                qc.invalidateQueries({ queryKey: ["auction-bids", auction.id] });
+            } catch (e) {
+                setPhase("idle");
+                const msg = (e && (e.shortMessage || e.message)) || "Bid failed";
+                toast.error("Bid rejected", {
+                    description: txHash ? "On-chain call reverted or DB write failed." : msg,
+                });
+            }
+            return;
+        }
+
+        // Fallback: application-level bid (Phase 6.4).
+        setPhase("pending");
         try {
             await submitBid({
                 auctionId: auction.id,
@@ -129,14 +186,14 @@ function BidForm({ auction, minNext, walletStatus }) {
                 description: "Application-level bid. Onchain escrow arrives in Phase 6.5.",
             });
             setAmount("");
+            setPhase("idle");
             qc.invalidateQueries({ queryKey: ["auction", auction.id] });
             qc.invalidateQueries({ queryKey: ["auction-bids", auction.id] });
         } catch (e) {
+            setPhase("idle");
             toast.error("Bid rejected", {
                 description: (e && e.message) || "The auction did not accept this bid.",
             });
-        } finally {
-            setSubmitting(false);
         }
     }
 
@@ -147,7 +204,7 @@ function BidForm({ auction, minNext, walletStatus }) {
                 className="mb-3 flex items-start gap-1.5 rounded-xl border border-white/[0.06] bg-black/25 px-3 py-2 text-[11px] text-white/55"
             >
                 <WalletIcon className="mt-0.5 h-3 w-3 shrink-0 text-[hsl(var(--bz-purple))]" />
-                {walletHint(walletStatus)}
+                {walletHint(walletStatus, onchainOn)}
             </div>
             <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -177,9 +234,91 @@ function BidForm({ auction, minNext, walletStatus }) {
                     ) : (
                         <Gavel className="h-4 w-4" />
                     )}
-                    Place Bid
+                    {phase === "signing" && "Awaiting signature…"}
+                    {phase === "pending" && "Confirming…"}
+                    {phase !== "signing" && phase !== "pending" && "Place Bid"}
                 </button>
             </div>
+            {lastTxHash && (
+                <a
+                    href={toExplorerTx(lastTxHash)}
+                    target="_blank"
+                    rel="noreferrer"
+                    data-testid="bid-tx-link"
+                    className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-white/55 hover:text-white"
+                >
+                    <ExternalLink className="h-3 w-3" />
+                    View last transaction on {MONAD.networkName}
+                </a>
+            )}
+            <RefundPanel auctionUuid={auction.id} walletAddress={walletAddress} onchainOn={onchainOn && walletStatus === "ready"} privyWallet={privyWallet} />
+        </div>
+    );
+}
+
+/**
+ * Pull-based refund UI — surfaces when the current signed-in wallet has an
+ * unclaimed refund in the BIDZONE contract for this auction. Nothing shown
+ * on-chain when no refund is queued.
+ */
+function RefundPanel({ auctionUuid, walletAddress, onchainOn, privyWallet }) {
+    const [refund, setRefund] = useState(null);
+    const [busy, setBusy] = useState(false);
+    const [txHash, setTxHash] = useState(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        if (!onchainOn || !walletAddress) {
+            setRefund(null);
+            return () => {};
+        }
+        (async () => {
+            try {
+                const r = await readRefund(auctionUuid, walletAddress);
+                if (!cancelled) setRefund(r);
+            } catch {
+                if (!cancelled) setRefund(null);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [auctionUuid, walletAddress, onchainOn, txHash]);
+
+    if (!onchainOn || !refund || refund === 0n) return null;
+
+    async function claim() {
+        setBusy(true);
+        try {
+            const { hash } = await withdrawRefundOnchain({ wallet: privyWallet, uuid: auctionUuid });
+            setTxHash(hash);
+            toast.success("Refund withdrawn", { description: `${fromWei(refund)} MON returned to your wallet.` });
+        } catch (e) {
+            toast.error("Refund failed", { description: (e && (e.shortMessage || e.message)) || "See wallet response." });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <div
+            data-testid="refund-panel"
+            className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-[hsl(var(--bz-purple))]/40 bg-black/40 px-3 py-2"
+        >
+            <div className="text-[11px] text-white/70 flex items-center gap-1.5">
+                <Coins className="h-3.5 w-3.5 text-[hsl(var(--bz-purple))]" />
+                Refund available: <span className="font-semibold text-white">{fromWei(refund)} MON</span>
+            </div>
+            <button
+                type="button"
+                data-testid="refund-withdraw"
+                disabled={busy}
+                onClick={claim}
+                className="inline-flex items-center gap-1.5 rounded-full bz-btn-secondary px-3 py-1.5 text-[11px] font-semibold disabled:opacity-60"
+            >
+                {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                Withdraw
+            </button>
         </div>
     );
 }

@@ -24,7 +24,7 @@ history) must be fully transparent. **No secret reserves, no secret minimums.**
 - Phase 6.2: ✅ Supabase Auth (Google-only MVP + pre-flight provider check + session persistence)
 - Phase 6.3: ✅ Embedded Wallet foundation (Privy + viem) — honest "unavailable" state until App ID set
 - **Phase 6.4: ✅ Functional Auction — application-level bidding, OUTBID notifications, live updates, ENDED state** (backend 23/23 + frontend 21/21, 2026-02-03)
-- Phase 6.5: ⏳ Monad testnet + smart contract + onchain escrow (NOT started — awaits explicit user go-ahead)
+- **Phase 6.5: 🟡 Smart contract READY — awaiting user deployment** (contract + 30/30 tests + frontend wiring + additive DB migration, 2026-02-03). Contract address unset until user runs `npm run deploy:monad`. E2E on-chain testnet verification pending deploy + faucet.
 
 ## Phase 5.1 deliverables (this workspace)
 - `/app/frontend/src/pages/Home.jsx` + `components/home/*` — full Home page
@@ -45,7 +45,8 @@ history) must be fully transparent. **No secret reserves, no secret minimums.**
 - Escrow / reputation / shipping mutations: service role only.
 
 ## Backlog (next phases)
-- P0: Phase 6.5 — Monad testnet smart contract + onchain escrow settlement (wait for user green-light)
+- P0: Phase 6.5b — user deploys `BidzoneAuction` to Monad Testnet, sets `REACT_APP_MONAD_CONTRACT_ADDRESS` + `REACT_APP_BIDZONE_TREASURY_ADDRESS`, funds A/B/C wallets, run E2E on-chain verification
+- P0: Phase 6.6 — Delivery / shipping / dispute UX (DO NOT start until 6.5 fully verified)
 - P0: Edge functions for shipping create/update, escrow write-back from Monad indexer
 - P0: Smart-contract mirror service (reputation_events + escrow_transactions)
 - P1: Wallet-based Web3 auth alongside Supabase auth
@@ -65,3 +66,35 @@ history) must be fully transparent. **No secret reserves, no secret minimums.**
   with empty-string token defaults required by GoTrue; profile auto-created
   by `on_auth_user_created` trigger). Credentials in `memory/test_credentials.md`.
 - Reference test suite: `/app/backend/tests/phase64_server_tests.py` — 23/23 PASS.
+
+## Phase 6.5 deliverables (2026-02-03) — code-complete, deployment-pending
+- `/app/contracts/bidzone/` — Hardhat project.
+- `contracts/BidzoneAuction.sol` (Solidity 0.8.24, OpenZeppelin ReentrancyGuard,
+  paris EVM target for Monad compat). Immutable treasury, immutable
+  `FEE_BPS=250`. Anti-sniping REPLACES `endTime` (no stacking).
+  Pull-based refunds. English ascending auction. Checks-effects-interactions
+  + `nonReentrant`. Rejects plain MON transfers.
+- 30/30 Hardhat tests passing (7 groups: deployment, creation, bidding rules,
+  outbid & refund, anti-sniping, settlement, safety) + 1 dedicated
+  reentrancy attack test.
+- `scripts/deploy.js` — refuses to run when `BIDZONE_TREASURY_ADDRESS` is
+  empty or equal to the deployer (no fallback). Prints only public data.
+- Frontend wiring (env-driven):
+  - `frontend/src/lib/contracts/BidzoneAuction.abi.json` (from Hardhat build)
+  - `frontend/src/lib/bidzoneAuction.js` — viem read/write helpers +
+    `auctionIdFromUuid` (keccak256 of Supabase UUID → bytes32).
+  - `context/WalletContext.jsx` — exposes `privyWallet` handle for signing.
+  - `pages/CreateAuction.jsx` — on-chain `createAuction` after publish when
+    contract configured + wallet ready; DB row updated with
+    `contract_auction_id`, `chain_id`, `contract_address`, `creation_tx_hash`.
+  - `components/auction/BiddingPanel.jsx` — dual-mode bid path
+    (on-chain when configured, app-level otherwise); explorer link;
+    pull-based `RefundPanel` when refund > 0.
+  - `components/auction/EndedState.jsx` — "Settle on-chain" button visible
+    when configured + wallet ready; shows explorer tx link.
+- Additive Supabase migration `20260203000004_bidzone_onchain_columns.sql`:
+  auctions {contract_auction_id, chain_id, contract_address, creation_tx_hash},
+  escrow_transactions {chain_id, contract_address}. No column removal, no
+  destructive change to existing tables.
+- Regression: 23/23 Phase 6.4 backend matrix + frontend production build PASS.
+- Test users unchanged: A / B / C. No secrets committed anywhere.

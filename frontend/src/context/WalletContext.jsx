@@ -38,6 +38,7 @@ function makeUnavailableValue(reason) {
         balance: null,
         error: null,
         reason,
+        privyWallet: null,
         initializeWallet: async () => {
             throw new Error("Embedded wallet is not configured");
         },
@@ -219,6 +220,9 @@ function PrivyWalletDomain({ children }) {
             address,
             balance,
             error,
+            // Raw Privy wallet handle — used by lib/bidzoneAuction.js for
+            // on-chain writes (EIP-1193 signing). Never expose signing keys.
+            privyWallet: wallets.find((w) => w.walletClientType === "privy") || null,
             initializeWallet: async () => {
                 if (!address) await refreshBalance();
                 return address;
@@ -229,7 +233,7 @@ function PrivyWalletDomain({ children }) {
             signTransaction,
             signMessage,
         }),
-        [isAuthed, status, address, balance, error, refreshBalance, signTransaction, signMessage]
+        [isAuthed, status, address, balance, error, wallets, refreshBalance, signTransaction, signMessage]
     );
 
     return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;

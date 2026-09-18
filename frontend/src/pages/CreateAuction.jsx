@@ -8,10 +8,17 @@ import { Footer } from "@/components/home/Footer";
 import { MediaUploader } from "@/components/create/MediaUploader";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/context/AuthContext";
+import { useWallet } from "@/context/WalletContext";
 import {
     uploadAuctionMedia,
     deleteAuctionMedia,
 } from "@/lib/storage";
+import {
+    isOnchainAvailable,
+    auctionIdFromUuid,
+    createAuctionOnchain,
+} from "@/lib/bidzoneAuction";
+import { MONAD } from "@/lib/monad";
 
 const CATEGORIES = [
     "Electronics",
@@ -77,6 +84,7 @@ export default function CreateAuction() {
 
 function CreateForm() {
     const { session, isLoading, openAuthModal } = useAuth();
+    const { privyWallet, status: walletStatus } = useWallet();
     const navigate = useNavigate();
     const qc = useQueryClient();
 
@@ -188,6 +196,41 @@ function CreateForm() {
                 .eq("id", auctionId);
             if (pErr) throw new Error(pErr.message);
 
+            // Phase 6.5 — mirror the auction on-chain when contract is
+            // configured AND seller has an embedded wallet ready. Failure
+            // here is honest: the row is Supabase-only, and bidders will
+            // fall back to application-level bids until on-chain creation
+            // is retried (a Phase 6.5b task).
+            if (isOnchainAvailable() && walletStatus === "ready" && privyWallet) {
+                setPhase("onchain");
+                try {
+                    const { hash } = await createAuctionOnchain({
+                        wallet: privyWallet,
+                        uuid: auctionId,
+                        startingBidMon: form.startingBid,
+                        minimumIncrementMon: form.minimumIncrement,
+                        startTime: start,
+                        endTime: end,
+                        antiSnipeSeconds: Number(form.antiSniping) || 10,
+                    });
+                    await supabase
+                        .from("auctions")
+                        .update({
+                            contract_auction_id: auctionIdFromUuid(auctionId),
+                            chain_id: MONAD.chainId,
+                            contract_address: MONAD.contractAddress,
+                            creation_tx_hash: hash,
+                        })
+                        .eq("id", auctionId);
+                } catch (chainErr) {
+                    // Non-blocking — auction remains LIVE off-chain.
+                    toast.error("On-chain listing failed", {
+                        description: (chainErr && (chainErr.shortMessage || chainErr.message)) ||
+                            "The Supabase auction is live; the on-chain listing did not confirm.",
+                    });
+                }
+            }
+
             qc.invalidateQueries({ queryKey: ["home-auctions"] });
             qc.invalidateQueries({ queryKey: ["auction", auctionId] });
             setPhase("done");
@@ -234,7 +277,7 @@ function CreateForm() {
         );
     }
 
-    const busy = phase === "creating" || phase === "uploading" || phase === "saving";
+    const busy = phase === "creating" || phase === "uploading" || phase === "saving" || phase === "onchain";
 
     return (
         <form onSubmit={submit} className="space-y-6">
@@ -367,6 +410,7 @@ function CreateForm() {
                     {phase === "creating" && "Creating auction…"}
                     {phase === "uploading" && "Uploading media…"}
                     {phase === "saving" && "Saving media…"}
+                    {phase === "onchain" && "Listing on-chain…"}
                     {phase === "done" && "Published"}
                 </button>
                 <button
