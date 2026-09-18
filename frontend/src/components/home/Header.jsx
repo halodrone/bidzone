@@ -1,0 +1,205 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import {
+    Search,
+    Bell,
+    Menu,
+    X,
+    Sparkles,
+    Wallet as WalletIcon,
+    ChevronRight,
+} from "lucide-react";
+
+const NAV = [
+    { label: "Home", href: "/" },
+    { label: "Live Zone", href: "/live" },
+    { label: "Explore", href: "/explore" },
+    { label: "Create Auction", href: "/create" },
+];
+
+export function Header() {
+    const [mobileOpen, setMobileOpen] = useState(false);
+
+    return (
+        <header
+            data-testid="bidzone-header"
+            className="sticky top-0 z-50 border-b border-white/[0.06] bg-[hsl(var(--bz-bg))]/85 backdrop-blur-xl"
+        >
+            <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-4 px-4 md:h-20 md:px-8">
+                {/* Logo */}
+                <Link
+                    to="/"
+                    data-testid="bidzone-logo"
+                    className="flex items-center gap-3 shrink-0"
+                >
+                    <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[hsl(var(--bz-surface))] border border-white/10">
+                        <Sparkles
+                            className="h-4 w-4 text-[hsl(var(--bz-purple))]"
+                            strokeWidth={2.5}
+                        />
+                        <span className="absolute -inset-px rounded-xl bg-[hsl(var(--bz-purple)/0.15)] blur-md -z-10" />
+                    </span>
+                    <span className="flex flex-col leading-none">
+                        <span className="font-display text-lg font-bold tracking-tight">
+                            BIDZONE
+                        </span>
+                        <span className="hidden md:inline-block text-[10px] uppercase tracking-[0.18em] text-white/40">
+                            Real-Time Social Auction
+                        </span>
+                    </span>
+                </Link>
+
+                {/* Center search (desktop) */}
+                <div className="hidden lg:flex flex-1 max-w-xl mx-4">
+                    <label
+                        htmlFor="bz-search"
+                        className="group relative flex w-full items-center"
+                    >
+                        <Search className="absolute left-4 h-4 w-4 text-white/40 group-focus-within:text-[hsl(var(--bz-purple))] transition-colors" />
+                        <input
+                            id="bz-search"
+                            data-testid="header-search-input"
+                            type="search"
+                            placeholder="Search auctions, items, or sellers..."
+                            className="w-full h-11 rounded-full bg-[hsl(var(--bz-surface))]/70 border border-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-[hsl(var(--bz-purple)/0.6)] focus:bg-[hsl(var(--bz-surface))]"
+                        />
+                    </label>
+                </div>
+
+                {/* Nav (desktop) */}
+                <nav
+                    aria-label="Primary"
+                    className="hidden md:flex items-center gap-1 text-sm"
+                >
+                    {NAV.map((n) => (
+                        <Link
+                            key={n.href}
+                            to={n.href}
+                            data-testid={`nav-${n.label.toLowerCase().replace(/\s+/g, "-")}`}
+                            className="rounded-full px-3 py-2 text-white/70 hover:text-white hover:bg-white/[0.04] transition-colors"
+                        >
+                            {n.label}
+                        </Link>
+                    ))}
+                </nav>
+
+                {/* Right cluster */}
+                <div className="ml-auto flex items-center gap-2">
+                    <button
+                        type="button"
+                        data-testid="header-notifications"
+                        aria-label="Notifications"
+                        className="relative h-10 w-10 rounded-full border border-white/[0.08] bg-[hsl(var(--bz-surface))]/60 hover:bg-[hsl(var(--bz-surface))] hover:border-white/20 transition flex items-center justify-center"
+                    >
+                        <Bell className="h-4 w-4 text-white/70" />
+                    </button>
+
+                    <WalletButton />
+
+                    <button
+                        type="button"
+                        onClick={() => setMobileOpen(true)}
+                        data-testid="header-mobile-menu"
+                        aria-label="Open menu"
+                        className="md:hidden h-10 w-10 rounded-full border border-white/[0.08] bg-[hsl(var(--bz-surface))]/60 flex items-center justify-center"
+                    >
+                        <Menu className="h-4 w-4 text-white/70" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Search bar (mobile — under header) */}
+            <div className="lg:hidden px-4 pb-3">
+                <label htmlFor="bz-search-m" className="group relative flex w-full items-center">
+                    <Search className="absolute left-4 h-4 w-4 text-white/40" />
+                    <input
+                        id="bz-search-m"
+                        data-testid="header-search-input-mobile"
+                        type="search"
+                        placeholder="Search auctions, items, or sellers..."
+                        className="w-full h-11 rounded-full bg-[hsl(var(--bz-surface))]/70 border border-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-white/40 outline-none focus:border-[hsl(var(--bz-purple)/0.6)]"
+                    />
+                </label>
+            </div>
+
+            {/* Mobile drawer */}
+            {mobileOpen && (
+                <MobileNav onClose={() => setMobileOpen(false)} />
+            )}
+        </header>
+    );
+}
+
+function WalletButton() {
+    // Placeholder pending real embedded-wallet integration.
+    // Never displays a fabricated balance.
+    return (
+        <button
+            type="button"
+            data-testid="header-wallet"
+            className="hidden sm:inline-flex items-center gap-2 h-10 pl-3 pr-4 rounded-full bz-btn-secondary text-sm"
+            title="Wallet placeholder — embedded wallet integration coming soon"
+        >
+            <WalletIcon className="h-4 w-4 text-[hsl(var(--bz-purple))]" />
+            <span className="font-medium">Sign In</span>
+            <span className="hidden md:inline text-white/40">/ Get Started</span>
+        </button>
+    );
+}
+
+function MobileNav({ onClose }) {
+    return (
+        <div
+            className="md:hidden fixed inset-0 z-[60]"
+            data-testid="mobile-nav-drawer"
+            role="dialog"
+            aria-modal="true"
+        >
+            <button
+                type="button"
+                aria-label="Close menu"
+                onClick={onClose}
+                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            />
+            <div className="absolute right-0 top-0 h-full w-[86%] max-w-xs bg-[hsl(var(--bz-bg))] border-l border-white/10 p-6 overflow-y-auto">
+                <div className="flex items-center justify-between mb-8">
+                    <span className="font-display text-lg font-bold">BIDZONE</span>
+                    <button
+                        onClick={onClose}
+                        aria-label="Close menu"
+                        className="h-9 w-9 rounded-full border border-white/10 flex items-center justify-center"
+                        data-testid="mobile-nav-close"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+                <nav className="flex flex-col gap-1">
+                    {NAV.map((n) => (
+                        <Link
+                            key={n.href}
+                            to={n.href}
+                            onClick={onClose}
+                            data-testid={`mobile-nav-${n.label.toLowerCase().replace(/\s+/g, "-")}`}
+                            className="flex items-center justify-between rounded-xl px-4 py-3 text-white/80 hover:text-white hover:bg-white/[0.04] transition"
+                        >
+                            <span className="text-sm font-medium">{n.label}</span>
+                            <ChevronRight className="h-4 w-4 text-white/30" />
+                        </Link>
+                    ))}
+                </nav>
+                <div className="mt-8 pt-6 border-t border-white/[0.06]">
+                    <button
+                        type="button"
+                        data-testid="mobile-nav-signin"
+                        className="w-full inline-flex items-center justify-center gap-2 h-11 rounded-full bz-btn-primary text-sm font-semibold"
+                    >
+                        Sign In / Get Started
+                    </button>
+                    <p className="text-[11px] text-white/40 mt-3 text-center">
+                        Embedded wallet — no seed phrases, no extensions.
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+}
