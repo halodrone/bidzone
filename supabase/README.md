@@ -10,6 +10,11 @@ No smart contracts, no on-chain calls, no frontend changes.
 3. `migrations/20260201000003_bidzone_realtime.sql` — realtime publication
 4. `migrations/20260201000010_bidzone_phase41_fixups.sql` — approved Phase 4.1 fix-ups
    (auction field protection, anti-sniping default = 10s)
+5. `migrations/20260202000001_bidzone_lifecycle_schema.sql` — Phase 4.2 additive columns + indexes
+6. `migrations/20260202000002_bidzone_lifecycle_functions.sql` — Phase 4.2 RPC functions
+7. `migrations/20260202000003_bidzone_scheduling.sql` — pg_cron jobs (safe no-op if pg_cron off)
+
+Tests: `tests/phase42_lifecycle_test.sql` — 26 assertions covering the full lifecycle.
 
 ### Apply
 ```bash
