@@ -101,3 +101,30 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+## user_problem_statement: "BIDZONE — Apply the 7 approved Supabase migrations to the connected live project (ialusnghydghsykekgeb) and verify database, RLS, triggers, functions, realtime, pg_cron, lifecycle tests, and REST 200"
+## backend:
+##   - task: "Apply 7 Supabase migrations to live project in exact order"
+##     implemented: true
+##     working: true
+##     file: "supabase/migrations/*.sql"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##         - working: true
+##           agent: "main"
+##           comment: "M1-M7 applied via psql session pooler with per-step verification. Verified live: 13 tables (no duplicates), RLS enabled 13/13 + FORCE on addresses/shipping/escrow_transactions/disputes, 32 policies, triggers tg_validate_bid (SECURITY DEFINER) + tg_after_bid_insert + tg_protect_auction_fields + set_updated_at x6 + on_auth_user_created, 13 SECURITY DEFINER lifecycle functions, realtime publication 6 tables all REPLICA IDENTITY FULL, pg_cron 1.6.4 with 3 jobs (close_expired 15s / ship deadlines 1m / auto-release 1m). M7 required minimal compatibility fix: pg_cron >= 1.6 rejects interval '1 minute' -> replaced with '* * * * *' (identical schedule). Lifecycle test suite: 26 PASS / 0 FAIL across 14 scenarios, executed inside BEGIN/ROLLBACK -> zero data residue (auctions=0, profiles=0). REST /rest/v1/auctions returns 200 [] (previous 404 gone). frontend/.env holds publishable key only, gitignored; no secrets in git history."
+## metadata:
+##   created_by: "main_agent"
+##   version: "1.0"
+##   test_sequence: 1
+##   run_ui: false
+## test_plan:
+##   current_focus:
+##     - "Awaiting user: next phase decision (auth / storage / embedded wallet)"
+##   stuck_tasks: []
+##   test_all: false
+##   test_priority: "high_first"
+## agent_communication:
+##     - agent: "main"
+##       message: "Production Supabase schema live and verified. Stopped after report as instructed - no further phases started."

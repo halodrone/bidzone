@@ -30,9 +30,11 @@ begin
     );
 
     -- B) Detect seller shipping-deadline breaches — every minute.
+    --    (pg_cron >= 1.6 rejects the interval '1 minute'; '* * * * *' IS
+    --    "every 1 minute" in standard cron syntax — same schedule, same job.)
     perform cron.schedule(
         'bidzone_check_ship_deadlines',
-        '1 minute',
+        '* * * * *',
         $cron$ select public.check_ship_deadlines(); $cron$
     );
 
@@ -40,9 +42,10 @@ begin
     --    (Confirmation window starts inside update_shipping_tracking when
     --    tracking_status becomes DELIVERED, so no separate "start" job is
     --    required — this cron only enforces the deadline.)
+    --    pg_cron >= 1.6 rejects '1 minute'; '* * * * *' IS every minute.
     perform cron.schedule(
         'bidzone_check_auto_releases',
-        '1 minute',
+        '* * * * *',
         $cron$ select public.check_auto_releases(); $cron$
     );
 end;
