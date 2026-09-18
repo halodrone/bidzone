@@ -199,3 +199,45 @@ export function addDecimals(a, b, scale = 18) {
     const fPart = s.slice(s.length - scale).replace(/0+$/, "");
     return fPart.length ? `${iPart}.${fPart}` : iPart;
 }
+
+// String-safe comparison for Numeric(38,18): returns -1 | 0 | 1.
+// Never uses JavaScript floating-point arithmetic.
+export function compareDecimals(a, b, scale = 18) {
+    const norm = (v) => {
+        const [i, f = ""] = String(v ?? "0").split(".");
+        const frac = (f + "0".repeat(scale)).slice(0, scale);
+        return BigInt((i.startsWith("-") ? i : i.replace(/^0+(?=\d)/, "")) + frac);
+    };
+    const x = norm(a);
+    const y = norm(b);
+    return x < y ? -1 : x > y ? 1 : 0;
+}
+
+/**
+ * Phase 6.4 — submit an APPLICATION-LEVEL bid (no blockchain transaction).
+ * The server (tg_validate_bid + tg_after_bid_insert) remains fully
+ * authoritative: LIVE/window/seller/min-increment validation, current_bid
+ * update, anti-sniping extension, and outbid/won notifications all happen
+ * inside the database. The client never touches current_bid/status/end_time.
+ */
+export async function submitBid({ auctionId, bidderId, amount, walletAddress }) {
+    if (!supabase) throw new Error("Supabase is not configured");
+    const { data, error } = await supabase
+        .from("bids")
+        .insert({
+            auction_id: auctionId,
+            bidder_id: bidderId,
+            wallet_address: walletAddress || null,
+            amount,
+            status: "ACTIVE",
+        })
+        .select("id, amount, status, created_at")
+        .single();
+    if (error) {
+        // Surface the database's own validation messages (e.g.
+        // BID_BELOW_MINIMUM, AUCTION_NOT_LIVE, SELLER_CANNOT_BID) verbatim —
+        // they are already user-appropriate and honest.
+        throw new Error(error.message || "Bid rejected");
+    }
+    return data;
+}

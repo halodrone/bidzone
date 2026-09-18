@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Loader2, LogIn } from "lucide-react";
+import { AlertCircle, Loader2, LogIn, FileText } from "lucide-react";
+import { toast } from "sonner";
 import { Header } from "@/components/home/Header";
 import { Footer } from "@/components/home/Footer";
 import { MediaUploader } from "@/components/create/MediaUploader";
@@ -87,7 +88,7 @@ function CreateForm() {
 
     const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-    async function submit(e) {
+    async function submit(e, mode = "publish") {
         e.preventDefault();
         setError(null);
 
@@ -170,7 +171,17 @@ function CreateForm() {
                 }
             }
 
-            // 4) Publish: DRAFT -> LIVE.
+            // 4) Publish: DRAFT -> LIVE. ("draft" mode keeps the row as a
+            // DRAFT — publishable later from the Auction Room owner bar.)
+            if (mode === "draft") {
+                qc.invalidateQueries({ queryKey: ["home-auctions"] });
+                setPhase("done");
+                toast.success("Draft saved", {
+                    description: "Publish it any time from the auction room.",
+                });
+                navigate("/");
+                return;
+            }
             const { error: pErr } = await supabase
                 .from("auctions")
                 .update({ status: "LIVE" })
@@ -357,6 +368,15 @@ function CreateForm() {
                     {phase === "uploading" && "Uploading media…"}
                     {phase === "saving" && "Saving media…"}
                     {phase === "done" && "Published"}
+                </button>
+                <button
+                    type="button"
+                    data-testid="create-save-draft"
+                    disabled={busy}
+                    onClick={(e) => submit(e, "draft")}
+                    className="inline-flex items-center gap-2 rounded-full bz-btn-secondary px-5 py-3 text-sm font-semibold disabled:opacity-50"
+                >
+                    <FileText className="h-4 w-4" /> Save as draft
                 </button>
                 <Link to="/" className="text-sm text-white/50 hover:text-white">
                     Cancel
