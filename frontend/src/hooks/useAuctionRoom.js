@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { resolveMediaUrls } from "@/lib/storage";
 
 /**
  * Load an auction with its seller and media items.
@@ -35,7 +36,11 @@ export function useAuction(auctionId) {
                 .maybeSingle();
             if (error) throw error;
             if (!data) throw new Error("NOT_FOUND");
-            return data;
+            // Phase 6.1: resolve private-bucket storage paths to signed URLs
+            return {
+                ...data,
+                auction_items: await resolveMediaUrls(data.auction_items),
+            };
         },
     });
 

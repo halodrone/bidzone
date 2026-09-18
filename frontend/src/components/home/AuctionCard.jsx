@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Eye, MessageCircle, Heart, ShieldCheck, ImageOff } from "lucide-react";
 import { CountdownTimer } from "@/components/home/CountdownTimer";
@@ -14,16 +14,26 @@ function fmtAmount(n) {
     return s.replace(/0+$/, "").replace(/\.$/, "");
 }
 
+/**
+ * First IMAGE (by sort_order) of the auction. The data hook already resolved
+ * storage paths to signed URLs (Phase 6.1); videos are never used on Home so
+ * large media is never downloaded by the grid.
+ */
 function coverImage(auction) {
-    const items = auction.auction_items || [];
-    if (!items.length) return null;
-    const sorted = [...items].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-    return sorted[0]?.media_url || null;
+    const images = (auction.auction_items || []).filter(
+        (i) => i && i.media_type === "IMAGE" && i.media_url
+    );
+    if (!images.length) return null;
+    const sorted = [...images].sort(
+        (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    );
+    return sorted[0].media_url;
 }
 
 export function AuctionCard({ auction }) {
     const img = coverImage(auction);
     const [imgOk, setImgOk] = useState(Boolean(img));
+    useEffect(() => setImgOk(Boolean(img)), [img]);
     const seller = auction.seller || {};
     const price = auction.current_bid ?? auction.starting_bid;
     const isVerified = (seller.reputation_score ?? 0) >= 50;

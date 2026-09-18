@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { resolveMediaUrls } from "@/lib/storage";
 
 /**
  * Fetch auctions for the Home page.
@@ -58,7 +59,13 @@ export function useLiveAuctions(filter = "live", limit = 12) {
 
             const { data, error } = await q;
             if (error) throw error;
-            return data ?? [];
+            // Phase 6.1: resolve private-bucket storage paths to signed URLs
+            return await Promise.all(
+                (data ?? []).map(async (a) => ({
+                    ...a,
+                    auction_items: await resolveMediaUrls(a.auction_items),
+                }))
+            );
         },
     });
 }

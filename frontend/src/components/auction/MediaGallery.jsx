@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ImageOff, Video } from "lucide-react";
 
 export function MediaGallery({ items = [] }) {
@@ -79,6 +79,9 @@ export function MediaGallery({ items = [] }) {
 
 function MediaImage({ src, className = "" }) {
     const [ok, setOk] = useState(Boolean(src));
+    // Phase 6.1: src upgrades from the raw storage path to a signed URL once
+    // resolved — reset the error state so the image retries with the real URL.
+    useEffect(() => setOk(Boolean(src)), [src]);
     if (!src || !ok) {
         return (
             <div className={`flex h-full w-full items-center justify-center bg-[hsl(var(--bz-surface-2))] text-white/40 ${className}`}>

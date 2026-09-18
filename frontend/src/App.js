@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Toaster } from "sonner";
 import Home from "@/pages/Home";
 import AuctionRoom from "@/pages/AuctionRoom";
+import CreateAuction from "@/pages/CreateAuction";
 import "@/App.css";
 
 function App() {
@@ -11,6 +12,7 @@ function App() {
                 <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/auction/:auctionId" element={<AuctionRoom />} />
+                    <Route path="/create" element={<CreateAuction />} />
                     <Route path="*" element={<Home />} />
                 </Routes>
             </BrowserRouter>
