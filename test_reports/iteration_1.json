@@ -1,0 +1,23 @@
+{
+  "summary": "BIDZONE Phase 6.4 frontend E2E — full happy+sad-path auction & bidding flow verified end-to-end via Playwright driving the preview URL against real Supabase. All 9 requested scenarios pass: signed-out guards (create + bid CTA), authenticated auction creation via /create UI (LIVE with no owner-draft-bar), owner-note visibility, Seller B min-increment enforcement (client 0.09 -> 'Bid below minimum' toast; 0.10 accepted), Seller C server-side increment enforcement (0.12 rejected; 0.15 accepted), current-bid & min-next-bid live updates (0.10/0.15 -> 0.15/0.20), bid history reflects latest bid, OutbidWatcher toast surfaces when returning as B, DB has OUTBID notification row for B, countdown decrements (14:57 -> 14:55 in 2.5s), cron closes short auction and ENDED UI renders (disabled 'Auction Ended' CTA, no bid-form). Cleanup PATCH DRAFT + DELETE succeeded (204) for all 3 test-created auctions.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/phase64_server_tests.py"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CreateAuction.jsx signed-out notice actionLabel says 'Sign in with Google' but the auth modal supports email flow too — cosmetic wording, low priority.",
+    "OutbidWatcher toast fires on every reload where prevWinner ref transitions match; works correctly on the initial refetch because ref is initialized to null on mount, then set to top, and if subsequent refetch shows different top the toast fires — verified working; consider persisting last-seen top per (user,auction) if false-positives appear across route changes (none observed in this run)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not requested; 23/23 already green in phase64_server_tests.py)", "frontend": "100% (21/21 checks)"},
+  "test_credentials": "Seller A/B/C in /app/memory/test_credentials.md — used via password grant + localStorage injection at key sb-ialusnghydghsykekgeb-auth-token.",
+  "seed_data_creation": "Created 3 P64UI auctions during the run (signed-out seed, /create UI live, short-duration cron test). All PATCHed to DRAFT then DELETEd (204). OUTBID notifications for these auctions also deleted. Note: 1 P64UI-titled leftover row remained in DB from prior runs (final count=1) — not from this iteration; safe to ignore or main agent can prune.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Preview URL: https://code-sync-portal-2.preview.emergentagent.com. Auth injection pattern: localStorage.setItem('sb-ialusnghydghsykekgeb-auth-token', JSON.stringify({access_token,token_type:'bearer',expires_in,expires_at:now+expires_in,refresh_token,user})) then reload. StatusHeader testid is 'auction-status-header' (not 'status-header'). BidHistory testid is 'bid-history'. Cleanup rule: RLS requires status='DRAFT' before DELETE on auctions. Cron closes expired auctions within ~30-60s reliably (observed ~5-30s in this run).",
+  "rca of the issue": "None — all functionality verified. Initial single failure (T8 countdown) was a test-side selector typo (status-header vs auction-status-header); re-run with correct selector confirmed countdown decrements correctly."
+}

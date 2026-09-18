@@ -18,11 +18,13 @@ history) must be fully transparent. **No secret reserves, no secret minimums.**
 - Phase 4.1: ✅ Initial Supabase schema — SQL migration files
 - Phase 4.1 fix-up: ✅ Auction field protection + anti-sniping default = 10s
 - Phase 4.2: ✅ Server-side lifecycle handlers, cron functions, idempotent transitions — 26/26 tests pass
-- **Phase 5.1: ✅ BIDZONE Home page UI (React) — this workspace**
-- **Phase 5.2: ✅ BIDZONE Auction Room UI (React) — this workspace**
-- Phase 4.3+: Server-side services for shipping / escrow / reputation writes
-- Phase 5.2+: Auction Room, Create Auction form, Profile, etc.
-- Phase 6: Monad smart contracts, real bidding + escrow settlement, wallet auth
+- Phase 5.1: ✅ BIDZONE Home page UI (React)
+- Phase 5.2: ✅ BIDZONE Auction Room UI (React)
+- Phase 6.1: ✅ Supabase Storage + Auction Media (PRIVATE bucket + orphan-safe flow)
+- Phase 6.2: ✅ Supabase Auth (Google-only MVP + pre-flight provider check + session persistence)
+- Phase 6.3: ✅ Embedded Wallet foundation (Privy + viem) — honest "unavailable" state until App ID set
+- **Phase 6.4: ✅ Functional Auction — application-level bidding, OUTBID notifications, live updates, ENDED state** (backend 23/23 + frontend 21/21, 2026-02-03)
+- Phase 6.5: ⏳ Monad testnet + smart contract + onchain escrow (NOT started — awaits explicit user go-ahead)
 
 ## Phase 5.1 deliverables (this workspace)
 - `/app/frontend/src/pages/Home.jsx` + `components/home/*` — full Home page
@@ -43,9 +45,23 @@ history) must be fully transparent. **No secret reserves, no secret minimums.**
 - Escrow / reputation / shipping mutations: service role only.
 
 ## Backlog (next phases)
-- P0: Auth users → profile seed real UUIDs
+- P0: Phase 6.5 — Monad testnet smart contract + onchain escrow settlement (wait for user green-light)
 - P0: Edge functions for shipping create/update, escrow write-back from Monad indexer
 - P0: Smart-contract mirror service (reputation_events + escrow_transactions)
 - P1: Wallet-based Web3 auth alongside Supabase auth
-- P1: Realtime frontend wiring (auctions/bids/comments/reactions/notifications/shipping)
+- P1: Realtime frontend wiring extras (comments/reactions/notifications/shipping)
 - P2: Anti-sniping tuning; region validation for allowed_regions
+
+## Phase 6.4 deliverables (2026-02-03)
+- Migration `20260203000002_bidzone_bid_wallet_optional.sql` — bids.wallet_address nullable
+  (application-level bids before wallet exists remain honest, no fake addresses).
+- Migration `20260203000003_bidzone_outbid_notifications.sql` — extends
+  `tg_after_bid_insert` to emit OUTBID notifications per distinct prior bidder
+  (dedup_key `outbid:<auction_id>:<bid_id>:<bidder_id>`).
+- Frontend BiddingPanel with real submit path (`useAuctionRoom.submitBid`),
+  string-safe decimal math (BigInt), live current-bid/min-next updates,
+  OutbidWatcher toast, ENDED disabled CTA.
+- 3rd test user Seller C provisioned via SQL (auth.users + auth.identities
+  with empty-string token defaults required by GoTrue; profile auto-created
+  by `on_auth_user_created` trigger). Credentials in `memory/test_credentials.md`.
+- Reference test suite: `/app/backend/tests/phase64_server_tests.py` — 23/23 PASS.
