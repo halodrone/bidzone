@@ -15,7 +15,7 @@ const TABS = [
 
 export function LiveAuctionsSection() {
     const [filter, setFilter] = useState("live");
-    const { data, isLoading, isError, error } = useLiveAuctions(filter, 12);
+    const { data, isLoading, isError } = useLiveAuctions(filter, 12);
     const auctions = data ?? [];
 
     return (
@@ -73,7 +73,7 @@ export function LiveAuctionsSection() {
                 {isLoading ? (
                     <SkeletonGrid />
                 ) : isError ? (
-                    <ErrorState message={error?.message} />
+                    <ErrorState />
                 ) : auctions.length === 0 ? (
                     <EmptyState variant={filter} configured={isSupabaseConfigured} />
                 ) : (
@@ -108,7 +108,7 @@ function SkeletonGrid() {
     );
 }
 
-function ErrorState({ message }) {
+function ErrorState() {
     return (
         <div
             data-testid="live-auctions-error"
@@ -121,11 +121,8 @@ function ErrorState({ message }) {
                 We couldn't load live auctions.
             </h3>
             <p className="mt-2 text-sm text-white/50">
-                Please refresh in a moment. Our team has been notified.
+                Please refresh in a moment.
             </p>
-            {message ? (
-                <p className="mt-3 text-[11px] text-white/30">Detail: {String(message).slice(0, 120)}</p>
-            ) : null}
             <Link
                 to="/"
                 className="mt-6 inline-flex items-center justify-center rounded-full bz-btn-secondary px-4 py-2 text-sm font-medium"

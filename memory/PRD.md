@@ -19,6 +19,7 @@ history) must be fully transparent. **No secret reserves, no secret minimums.**
 - Phase 4.1 fix-up: ✅ Auction field protection + anti-sniping default = 10s
 - Phase 4.2: ✅ Server-side lifecycle handlers, cron functions, idempotent transitions — 26/26 tests pass
 - **Phase 5.1: ✅ BIDZONE Home page UI (React) — this workspace**
+- **Phase 5.2: ✅ BIDZONE Auction Room UI (React) — this workspace**
 - Phase 4.3+: Server-side services for shipping / escrow / reputation writes
 - Phase 5.2+: Auction Room, Create Auction form, Profile, etc.
 - Phase 6: Monad smart contracts, real bidding + escrow settlement, wallet auth

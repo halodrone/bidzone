@@ -63,11 +63,7 @@ export function EmptyState({ variant = "live", configured = true }) {
                 </Link>
             </div>
 
-            {!configured && (
-                <p className="mt-6 text-[11px] uppercase tracking-widest text-white/30">
-                    Supabase connection not yet configured for this preview
-                </p>
-            )}
+            {/* Configuration state is not surfaced to end users — polished empty state only. */}
         </div>
     );
 }
