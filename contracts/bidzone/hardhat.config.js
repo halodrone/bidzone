@@ -16,10 +16,12 @@ const {
 
 module.exports = {
   solidity: {
-    version: "0.8.24",
+    version: "0.8.30",
     settings: {
       optimizer: { enabled: true, runs: 200 },
-      evmVersion: "paris",
+      // Monad is EVM bytecode-compatible as of the Osaka fork.
+      // Ref: https://docs.monad.xyz/guides/deploy-smart-contract/hardhat
+      evmVersion: "osaka",
     },
   },
   networks: {

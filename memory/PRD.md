@@ -98,3 +98,13 @@ history) must be fully transparent. **No secret reserves, no secret minimums.**
   destructive change to existing tables.
 - Regression: 23/23 Phase 6.4 backend matrix + frontend production build PASS.
 - Test users unchanged: A / B / C. No secrets committed anywhere.
+
+## Phase 6.5 — Deployment (2026-02-03, Monad Testnet) — PUBLIC DATA ONLY
+- Contract: BidzoneAuction @ 0x05fE75cdC84deA944966D15c25c6633C03048EB5
+- Deployment tx: 0x598df7a8115952c3ddde96f675759dcb2302cf5fb973aad7c171398221c2dfff (block 63714325, gas 1,348,772)
+- Deployer address: 0x74f66a3F3B63c6D3f9d7ec9e0Eb8680F698cF5a4
+- Treasury address: 0x0F45ebc33c82cf4bc940379de10d111F3beBb88c
+- Chain ID: 10143 (Monad Testnet)
+- Compiler: solc 0.8.30, evmVersion osaka (Monad requirement), optimizer 200
+- Unit tests re-run on osaka compiler: 30/30 PASS
+- Private key lives ONLY in /app/contracts/bidzone/.env (gitignored, never displayed)
