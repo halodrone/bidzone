@@ -8,7 +8,8 @@ No smart contracts, no on-chain calls, no frontend changes.
 1. `migrations/20260201000001_bidzone_schema.sql` — tables, indexes, constraints, triggers
 2. `migrations/20260201000002_bidzone_rls.sql`    — Row Level Security policies
 3. `migrations/20260201000003_bidzone_realtime.sql` — realtime publication
-4. `migrations/20260201000004_bidzone_dev_seed.sql` — `[DEV]` demo data (optional)
+4. `migrations/20260201000010_bidzone_phase41_fixups.sql` — approved Phase 4.1 fix-ups
+   (auction field protection, anti-sniping default = 10s)
 
 ### Apply
 ```bash
@@ -24,7 +25,7 @@ top of the seed file, or edit the UUIDs to match users you already have.
 
 ---
 
-## Tables (14)
+## Tables (13)
 
 | Table | Purpose | PK | Key FKs |
 |---|---|---|---|
