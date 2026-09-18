@@ -11,7 +11,11 @@ import {
     LogOut,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useWallet } from "@/context/WalletContext";
+import { shortenAddress, MONAD } from "@/lib/monad";
 import { LOGOUT } from "@/constants/testIds";
+import { Copy, Check, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 const NAV = [
     { label: "Home", href: "/" },
@@ -176,6 +180,7 @@ function WalletButton() {
                 )}
             </span>
             <span className="max-w-[120px] truncate font-medium">{name}</span>
+            <WalletChip />
             <button
                 type="button"
                 data-testid={LOGOUT.button}
@@ -190,8 +195,91 @@ function WalletButton() {
     );
 }
 
+/**
+ * Phase 6.3 — embedded wallet status inside the authenticated header chip.
+ * Honest states only: provisioning spinner / shortened address + copy /
+ * "wallet not configured" — never a fabricated address or balance.
+ */
+function WalletChip() {
+    const { status, address, balance } = useWallet();
+    const [copied, setCopied] = useState(false);
+
+    if (status === "provisioning") {
+        return (
+            <span
+                data-testid="wallet-chip-provisioning"
+                title="Setting up your embedded wallet…"
+                className="ml-1 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/25 px-2 py-1 text-[10px] text-white/60"
+            >
+                <Loader2 className="h-3 w-3 animate-spin" /> Wallet…
+            </span>
+        );
+    }
+    if (status === "error") {
+        return (
+            <span
+                data-testid="wallet-chip-error"
+                className="ml-1 inline-flex items-center gap-1 rounded-full border border-[hsl(var(--bz-red))]/40 bg-[hsl(var(--bz-red))]/10 px-2 py-1 text-[10px] text-white/75"
+                title="Wallet provisioning failed"
+            >
+                Wallet error
+            </span>
+        );
+    }
+    if (status === "unavailable") {
+        return (
+            <span
+                data-testid="wallet-chip-unavailable"
+                title="Embedded wallet provider has not been configured yet"
+                className="ml-1 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/25 px-2 py-1 text-[10px] text-white/50"
+            >
+                <WalletIcon className="h-3 w-3" /> Wallet pending
+            </span>
+        );
+    }
+    if (!address) return null;
+
+    async function copyAddress() {
+        try {
+            await navigator.clipboard.writeText(address);
+            setCopied(true);
+            toast.success("Wallet address copied");
+            setTimeout(() => setCopied(false), 1600);
+        } catch {
+            toast.error("Could not copy address");
+        }
+    }
+
+    return (
+        <span
+            data-testid="wallet-chip-ready"
+            title={`${address} — ${balance || "Wallet ready"}`}
+            className="ml-1 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/25 px-2 py-1 text-[10px] text-white/75"
+        >
+            <span className="text-[hsl(var(--bz-purple))]">◆</span>
+            <span data-testid="wallet-address" className="tabular-nums">
+                {shortenAddress(address)}
+            </span>
+            <span className="text-white/40">·</span>
+            <span data-testid="wallet-balance" className="text-white/55">
+                {balance || "Wallet ready"}
+            </span>
+            <button
+                type="button"
+                data-testid="wallet-copy"
+                aria-label="Copy wallet address"
+                onClick={copyAddress}
+                className="inline-flex h-5 w-5 items-center justify-center rounded text-white/50 hover:text-white"
+            >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            </button>
+        </span>
+    );
+}
+
 function MobileAuthSlot() {
     const { isAuthed, profile, user, openAuthModal, signOut } = useAuth();
+    const { status, address, balance } = useWallet();
 
     if (!isAuthed) {
         return (
@@ -227,6 +315,30 @@ function MobileAuthSlot() {
                 </span>
                 <span className="text-sm font-medium truncate">{name}</span>
             </div>
+            {address ? (
+                <button
+                    type="button"
+                    data-testid="mobile-wallet-chip"
+                    onClick={() => {
+                        navigator.clipboard.writeText(address);
+                        toast.success("Wallet address copied");
+                    }}
+                    className="flex items-center justify-between rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3 text-left"
+                >
+                    <span className="text-xs text-white/70 tabular-nums">
+                        {address.slice(0, 6)}…{address.slice(-4)}
+                    </span>
+                    <span className="text-[10px] text-white/45">
+                        {balance || MONAD.networkName}
+                    </span>
+                </button>
+            ) : (
+                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3 text-[10px] text-white/45">
+                    {status === "provisioning"
+                        ? "Setting up embedded wallet…"
+                        : "Wallet pending — provider not configured yet"}
+                </div>
+            )}
             <button
                 type="button"
                 data-testid={LOGOUT.button}

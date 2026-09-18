@@ -123,6 +123,39 @@ let webpackConfig = {
         ],
       };
 
+      // Suppress source-map-loader errors for crypto libraries (missing source maps)
+      webpackConfig.ignoreWarnings = [
+        ...(webpackConfig.ignoreWarnings || []),
+        /Failed to parse source map/,
+        /ENOENT.*@noble\/curves/,
+        /ENOENT.*@scure\/bip32/,
+      ];
+
+      // Configure source-map-loader to not fail on missing source maps
+      const sourceMapLoaderRule = webpackConfig.module.rules.find(
+        rule => rule.enforce === 'pre' && rule.use && rule.use.some(u => u.loader && u.loader.includes('source-map-loader'))
+      );
+      if (sourceMapLoaderRule && sourceMapLoaderRule.use) {
+        sourceMapLoaderRule.use = sourceMapLoaderRule.use.map(u => {
+          if (u.loader && u.loader.includes('source-map-loader')) {
+            return {
+              ...u,
+              options: {
+                ...u.options,
+                filterSourceMappingUrl: (url, resourcePath) => {
+                  // Skip source maps for crypto libraries that don't ship them
+                  if (resourcePath.includes('@noble/curves') || resourcePath.includes('@scure/bip32')) {
+                    return false;
+                  }
+                  return true;
+                }
+              }
+            };
+          }
+          return u;
+        });
+      }
+
       // Add health check plugin to webpack if enabled
       if (config.enableHealthCheck && healthPluginInstance) {
         webpackConfig.plugins.push(healthPluginInstance);

@@ -5,6 +5,7 @@ import AuctionRoom from "@/pages/AuctionRoom";
 import CreateAuction from "@/pages/CreateAuction";
 import AuthCallback from "@/pages/AuthCallback";
 import { AuthProvider } from "@/context/AuthContext";
+import { WalletProvider } from "@/context/WalletContext";
 import "@/App.css";
 
 function App() {
@@ -12,13 +13,15 @@ function App() {
         <div className="App dark">
             <BrowserRouter>
                 <AuthProvider>
-                    <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/auction/:auctionId" element={<AuctionRoom />} />
-                        <Route path="/create" element={<CreateAuction />} />
-                        <Route path="/auth/callback" element={<AuthCallback />} />
-                        <Route path="*" element={<Home />} />
-                    </Routes>
+                    <WalletProvider>
+                        <Routes>
+                            <Route path="/" element={<Home />} />
+                            <Route path="/auction/:auctionId" element={<AuctionRoom />} />
+                            <Route path="/create" element={<CreateAuction />} />
+                            <Route path="/auth/callback" element={<AuthCallback />} />
+                            <Route path="*" element={<Home />} />
+                        </Routes>
+                    </WalletProvider>
                 </AuthProvider>
             </BrowserRouter>
             <Toaster
