@@ -108,6 +108,10 @@ function PrivyWalletDomain({ children }) {
     const [balance, setBalance] = useState(null);
     const [error, setError] = useState(null);
     const provisioning = useRef(false);
+    const statusRef = useRef(status);
+    useEffect(() => {
+        statusRef.current = status;
+    }, [status]);
 
     // Sync the Supabase (Google) session into Privy.
     useSubscribeToJwtAuthWithFlag({
@@ -119,6 +123,14 @@ function PrivyWalletDomain({ children }) {
             const { data } = await supabase.auth.getSession();
             return data && data.session ? data.session.access_token : undefined;
         },
+        // Surface the REAL Privy JWT-auth failure (e.g. "Origin not allowed")
+        // instead of swallowing it — the wallet chip tooltip shows it verbatim.
+        onError: useCallback((e) => {
+            if (statusRef.current === "ready") return; // wallet already provisioned; ignore transient JWT-sync errors
+            const msg = (e && e.message) || String(e || "unknown error");
+            setError(`Privy JWT auth: ${msg}`.slice(0, 140));
+            setStatus("error");
+        }, []),
     });
 
     // Idempotent provisioning: find-or-create the Privy embedded EVM wallet.
@@ -151,7 +163,21 @@ function PrivyWalletDomain({ children }) {
             await linkWalletToProfile(wallet.address);
         })()
             .catch((e) => {
-                setError((e && e.message) || "Wallet provisioning failed");
+                // Extract the REAL underlying failure (SDK rejections sometimes
+                // carry an empty .message with the cause nested) — the badge
+                // tooltip must show the actual error, never just a generic one.
+                const raw =
+                    (e && typeof e === "object" && e.message) ||
+                    (typeof e === "string" && e) ||
+                    (e && e.cause && (e.cause.message || String(e.cause))) ||
+                    "Wallet provisioning failed";
+                // When the Privy user session was never established, the root
+                // cause is the JWT sync rejection (origin not allowed / JWT
+                // config) — name it explicitly instead of a generic message.
+                const detail = authenticated
+                    ? String(raw)
+                    : "Privy session not established — JWT sync failed (check Privy allowed origins for this app origin)";
+                setError(detail.slice(0, 140));
                 setStatus("error");
             })
             .finally(() => {
