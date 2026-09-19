@@ -102,6 +102,22 @@ export function AuthProvider({ children }) {
 
     const signInWithGoogle = useCallback(async () => {
         if (!supabase) throw new Error("Supabase is not configured");
+        // PKCE verifier is ORIGIN-SCOPED (localStorage). The Emergent preview can
+        // serve the app on sibling origins (*.preview.emergentagent.com and
+        // *.preview.static.emergentagent.com) while the Supabase Site URL (the
+        // fixed OAuth landing) is one specific origin. If the user starts OAuth
+        // on one sibling and lands on the other, the verifier is absent and
+        // supabase-js silently skips the code exchange -> signed out forever.
+        // Record the origin that owns the verifier in a parent-domain cookie so
+        // AuthCallback can re-land the callback on the correct origin. No-ops
+        // when start origin == landing origin (normal single-origin setups).
+        try {
+            const host = window.location.hostname;
+            const parentDomain = host.split(".").slice(-2).join(".");
+            document.cookie = `bz_oauth_start_origin=${encodeURIComponent(window.location.origin)}; domain=.${parentDomain}; max-age=600; path=/; SameSite=Lax`;
+        } catch {
+            /* non-fatal: recovery simply won't be possible */
+        }
         const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
             options: {

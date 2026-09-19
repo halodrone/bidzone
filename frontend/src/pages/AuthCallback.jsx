@@ -20,6 +20,37 @@ export default function AuthCallback() {
         const oauthError = params.get("error_description") || params.get("error");
         const returnTo = consumeReturnTo();
 
+        // PKCE cross-origin recovery: if we landed WITHOUT a session (exchange
+        // was skipped — no code verifier at THIS origin, i.e. OAuth was started
+        // on a sibling preview origin), bounce ONCE to the origin that owns the
+        // verifier, preserving the full callback URL. Loop-guarded via
+        // sessionStorage (per-origin, max one extra hop, no infinite ping-pong).
+        if (!session && !oauthError) {
+            let startOrigin = null;
+            try {
+                const m = document.cookie.match(/(?:^|;\s*)bz_oauth_start_origin=([^;]+)/);
+                if (m) startOrigin = decodeURIComponent(m[1]);
+            } catch {
+                startOrigin = null;
+            }
+            const alreadyRecovered = sessionStorage.getItem("bz_oauth_recovered") === "1";
+            if (
+                startOrigin &&
+                startOrigin !== window.location.origin &&
+                !alreadyRecovered
+            ) {
+                try {
+                    sessionStorage.setItem("bz_oauth_recovered", "1");
+                } catch {
+                    /* ignore */
+                }
+                window.location.replace(
+                    `${startOrigin}/auth/callback${window.location.search}`
+                );
+                return undefined;
+            }
+        }
+
         const timer = setTimeout(() => {
             if (session && session.user) {
                 toast.success("Signed in. Welcome to BIDZONE.");
