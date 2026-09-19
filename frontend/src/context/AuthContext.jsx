@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { AuthModal } from "@/components/auth/AuthModal";
 
@@ -48,6 +49,38 @@ export function AuthProvider({ children }) {
             mounted = false;
             if (sub && sub.subscription) sub.subscription.unsubscribe();
         };
+    }, []);
+
+    // OAuth fallback recovery — GoTrue redirects to the configured Site URL
+    // (NOT to our redirectTo) whenever the OAuth callback cannot be resolved:
+    // expired/unknown state, failed code exchange, etc. The browser then
+    // lands on the app root with ?error=...&error_code=...&error_description=...
+    // params (plus a matching #error=... fragment). Surface that honestly with
+    // a friendly retry toast and clean the URL instead of a silent dead end.
+    // /auth/callback is skipped — AuthCallback.jsx owns error handling there.
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const errorCode = params.get("error_code") || params.get("error");
+        const errorDescription = params.get("error_description");
+        if (!errorCode && !errorDescription) return undefined;
+        if (window.location.pathname === "/auth/callback") return undefined;
+
+        const detail = (errorDescription || `OAuth error: ${errorCode}`).slice(0, 140);
+        toast.error("Sign-in could not be completed", {
+            description: `${detail} — please try signing in again.`,
+        });
+
+        params.delete("error");
+        params.delete("error_code");
+        params.delete("error_description");
+        params.delete("state");
+        const qs = params.toString();
+        const cleanUrl = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
+        window.history.replaceState({}, "", cleanUrl);
+        if (window.location.hash && window.location.hash.indexOf("error") !== -1) {
+            window.history.replaceState({}, "", cleanUrl);
+        }
+        return undefined;
     }, []);
 
     const user = session && session.user ? session.user : null;
