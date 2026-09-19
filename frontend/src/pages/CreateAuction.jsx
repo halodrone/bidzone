@@ -15,10 +15,9 @@ import {
 } from "@/lib/storage";
 import {
     isOnchainAvailable,
-    auctionIdFromUuid,
-    createAuctionOnchain,
+    toExplorerTx,
 } from "@/lib/bidzoneAuction";
-import { MONAD } from "@/lib/monad";
+import { registerOrReconcileAuction } from "@/lib/auctionRegistration";
 
 const CATEGORIES = [
     "Electronics",
@@ -196,37 +195,34 @@ function CreateForm() {
                 .eq("id", auctionId);
             if (pErr) throw new Error(pErr.message);
 
-            // Phase 6.5 — mirror the auction on-chain when contract is
-            // configured AND seller has an embedded wallet ready. Failure
-            // here is honest: the row is Supabase-only, and bidders will
-            // fall back to application-level bids until on-chain creation
-            // is retried (a Phase 6.5b task).
+            // Phase 6.5b — mirror the auction on-chain when contract is
+            // configured AND seller has an embedded wallet ready. The shared
+            // helper reads the contract FIRST (duplicate protection: an
+            // already-registered auction is reconciled, never re-created) and
+            // writes Supabase ONLY after transaction confirmation. Failure is
+            // honest: the row stays recoverable via the Auction Room
+            // "Register On-Chain" retry (Phase 6.5b).
             if (isOnchainAvailable() && walletStatus === "ready" && privyWallet) {
                 setPhase("onchain");
                 try {
-                    const { hash } = await createAuctionOnchain({
+                    const res = await registerOrReconcileAuction({
                         wallet: privyWallet,
-                        uuid: auctionId,
-                        startingBidMon: form.startingBid,
-                        minimumIncrementMon: form.minimumIncrement,
-                        startTime: start,
-                        endTime: end,
-                        antiSnipeSeconds: Number(form.antiSniping) || 10,
+                        auction: { id: auctionId, starting_bid: form.startingBid, minimum_increment: form.minimumIncrement, start_time: start.toISOString(), end_time: end.toISOString(), anti_sniping_seconds: Number(form.antiSniping) || 10, contract_auction_id: null },
                     });
-                    await supabase
-                        .from("auctions")
-                        .update({
-                            contract_auction_id: auctionIdFromUuid(auctionId),
-                            chain_id: MONAD.chainId,
-                            contract_address: MONAD.contractAddress,
-                            creation_tx_hash: hash,
-                        })
-                        .eq("id", auctionId);
+                    if (res.reconciled) {
+                        toast.info("Auction already registered on-chain", {
+                            description: "Supabase state was reconciled — no new transaction was needed.",
+                        });
+                    } else {
+                        toast.success("Auction registered on Monad Testnet", {
+                            description: toExplorerTx(res.hash),
+                        });
+                    }
                 } catch (chainErr) {
-                    // Non-blocking — auction remains LIVE off-chain.
-                    toast.error("On-chain listing failed", {
+                    // Non-blocking — auction remains recoverable.
+                    toast.error("On-chain registration pending", {
                         description: (chainErr && (chainErr.shortMessage || chainErr.message)) ||
-                            "The Supabase auction is live; the on-chain listing did not confirm.",
+                            "The auction is live in BIDZONE but is not registered on-chain yet. Use 'Register On-Chain' in the auction room.",
                     });
                 }
             }

@@ -36,6 +36,11 @@ export function BiddingPanel({ auction }) {
     const isAuthed = Boolean(session);
     const isSeller =
         isAuthed && profile && auction.seller && profile.id === auction.seller.id;
+    // Phase 6.5b pre-bid guard: when the on-chain path is configured but the
+    // auction is NOT registered on-chain (contract_auction_id NULL), bidding
+    // is locked — the user must never reach a raw BZ:not_found revert. The
+    // owner gets the "Register On-Chain" recovery bar (AuctionRoom).
+    const onchainPending = isOnchainAvailable() && !auction.contract_auction_id;
 
     return (
         <aside
@@ -72,7 +77,16 @@ export function BiddingPanel({ auction }) {
                 />
             </div>
 
-            {isLive && isAuthed && !isSeller && (
+            {isLive && isAuthed && !isSeller && onchainPending && (
+                <div
+                    data-testid="bid-onchain-pending-note"
+                    className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3 text-xs text-amber-200"
+                >
+                    This auction is not yet registered on-chain. Bidding unlocks once the
+                    seller completes on-chain registration.
+                </div>
+            )}
+            {isLive && isAuthed && !isSeller && !onchainPending && (
                 <BidForm auction={auction} minNext={minNext} walletStatus={walletStatus} />
             )}
             {isLive && isSeller && (

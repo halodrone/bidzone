@@ -65,6 +65,22 @@ export async function readRefund(uuid, address) {
     });
 }
 
+/**
+ * Phase 6.5b — on-chain read: auction status.
+ * Returns the Status enum value (0 = Status.None = NOT registered on-chain),
+ * or null when the on-chain path is not configured.
+ */
+export async function readAuctionStatus(uuid) {
+    if (!isOnchainAvailable()) return null;
+    const id = auctionIdFromUuid(uuid);
+    return readClient.readContract({
+        address: MONAD.contractAddress,
+        abi: BIDZONE_ABI,
+        functionName: "statusOf",
+        args: [id],
+    });
+}
+
 /** Seller creates an on-chain auction (used at publish time by seller flow). */
 export async function createAuctionOnchain({ wallet, uuid, startingBidMon, minimumIncrementMon, startTime, endTime, antiSnipeSeconds }) {
     const client = await walletClientFrom(wallet);
