@@ -25,6 +25,9 @@ history) must be fully transparent. **No secret reserves, no secret minimums.**
 - Phase 6.3: ✅ Embedded Wallet foundation (Privy + viem) — honest "unavailable" state until App ID set
 - **Phase 6.4: ✅ Functional Auction — application-level bidding, OUTBID notifications, live updates, ENDED state** (backend 23/23 + frontend 21/21, 2026-02-03)
 - **Phase 6.5: 🟡 Smart contract READY — awaiting user deployment** (contract + 30/30 tests + frontend wiring + additive DB migration, 2026-02-03). Contract address unset until user runs `npm run deploy:monad`. E2E on-chain testnet verification pending deploy + faucet.
+- **Phase 6.5 — Deployment: ✅ BidzoneAuction live on Monad Testnet** (chain 10143): contract 0x05fE75cdC84deA944966D15c25c6633C03048EB5, treasury 0x0F45ebc33c82cf4bc940379de10d111F3beBb88c, FEE_BPS 250. Read-only on-chain checks verified.
+- **SECURITY + PROFILE phase: ✅ PASS** (auth guards, wallet identity, RLS audit, withdraw, /profile — 12/12 + full security matrix).
+- **AUTH + MOBILE/UI phase: ✅ PASS** (2026-09-20): mobile top-clipping ROOT CAUSE fixed (backdrop-filter on <header> created a containing block that collapsed the fixed MobileNav drawer to the header box — drawer now rendered outside the header); reactions + comments auth WIRED to existing tables/RLS/realtime (authenticated toggle/submit + persistence, unauthenticated get the Google sign-in modal — no silent failures, no anonymous rows); functional navigation (Live Zone/Explore/categories now filter the Home live listing via ?tab/?category, Profile+Wallet added to mobile drawer, honest coming-soon states for search/Bell/socials); lint 0 issues + build PASS; regression 10/10 by testing agent. Out of scope kept out: Physical Auction, contract/RLS/escrow changes.
 
 ## Phase 5.1 deliverables (this workspace)
 - `/app/frontend/src/pages/Home.jsx` + `components/home/*` — full Home page

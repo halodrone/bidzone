@@ -11,7 +11,8 @@ import {
     LayoutGrid,
 } from "lucide-react";
 
-const CATEGORIES = [
+// Exported for LiveAuctionsSection (category chip label lookup).
+export const CATEGORIES = [
     { slug: "electronics",   label: "Electronics",   icon: Cpu },
     { slug: "sneakers",      label: "Sneakers",      icon: Footprints },
     { slug: "collectibles",  label: "Collectibles",  icon: Package },
@@ -65,7 +66,7 @@ export function CategorySection() {
 function CategoryItem({ slug, label, icon: Icon }) {
     return (
         <Link
-            to={`/explore?category=${slug}`}
+            to={`/?category=${slug}&tab=all#live-auctions`}
             data-testid={`category-${slug}`}
             className="group flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3 py-6 transition hover:-translate-y-0.5 hover:border-[hsl(var(--bz-purple)/0.55)] hover:bg-white/[0.04]"
         >

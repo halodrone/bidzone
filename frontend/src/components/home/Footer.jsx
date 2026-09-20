@@ -23,27 +23,29 @@ export function Footer() {
                 </Link>
 
                 <nav className="flex items-center gap-5 text-sm text-white/50">
-                    <Link to="/live" className="hover:text-white">Live Zone</Link>
-                    <Link to="/explore" className="hover:text-white">Explore</Link>
+                    <Link to={{ pathname: "/", search: "?tab=live", hash: "#live-auctions" }} className="hover:text-white">Live Zone</Link>
+                    <Link to={{ pathname: "/", search: "?tab=all", hash: "#live-auctions" }} className="hover:text-white">Explore</Link>
                     <Link to="/create" className="hover:text-white">Create</Link>
                     <a href="#how-it-works" className="hover:text-white">How it Works</a>
                 </nav>
 
                 <div className="flex items-center gap-2">
-                    <a
-                        href="#"
-                        aria-label="Twitter"
-                        className="h-9 w-9 rounded-full border border-white/[0.08] flex items-center justify-center hover:border-white/25 hover:text-white text-white/50"
+                    <span
+                        aria-label="Twitter — coming soon"
+                        aria-disabled="true"
+                        title="Social links are coming soon"
+                        className="h-9 w-9 rounded-full border border-white/[0.08] flex items-center justify-center text-white/50 opacity-50 cursor-not-allowed"
                     >
                         <Twitter className="h-4 w-4" />
-                    </a>
-                    <a
-                        href="#"
-                        aria-label="GitHub"
-                        className="h-9 w-9 rounded-full border border-white/[0.08] flex items-center justify-center hover:border-white/25 hover:text-white text-white/50"
+                    </span>
+                    <span
+                        aria-label="GitHub — coming soon"
+                        aria-disabled="true"
+                        title="Social links are coming soon"
+                        className="h-9 w-9 rounded-full border border-white/[0.08] flex items-center justify-center text-white/50 opacity-50 cursor-not-allowed"
                     >
                         <Github className="h-4 w-4" />
-                    </a>
+                    </span>
                 </div>
             </div>
             <div className="border-t border-white/[0.04]">

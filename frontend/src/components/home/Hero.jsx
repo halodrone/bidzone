@@ -76,7 +76,7 @@ export function Hero() {
 
                     <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                         <Link
-                            to="/live"
+                            to={{ pathname: "/", search: "?tab=live", hash: "#live-auctions" }}
                             data-testid="hero-cta-primary"
                             className="inline-flex items-center justify-center gap-2 rounded-full bz-btn-primary px-6 py-3.5 text-sm font-semibold"
                         >
@@ -95,8 +95,9 @@ export function Hero() {
 
                     {/* Feature strip */}
                     <ul
+                        id="how-it-works"
                         data-testid="hero-features"
-                        className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4"
+                        className="mt-10 grid scroll-mt-32 grid-cols-2 gap-3 sm:grid-cols-4"
                     >
                         {FEATURES.map(({ icon: Icon, label }) => (
                             <li

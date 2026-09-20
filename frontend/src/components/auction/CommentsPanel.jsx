@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { MessageCircle, LogIn, Send } from "lucide-react";
 import { toast } from "sonner";
+import { useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuctionComments } from "@/hooks/useAuctionRoom";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { displayName, timeAgo } from "@/components/auction/format";
 
 export function CommentsPanel({ auctionId }) {
@@ -37,7 +41,7 @@ export function CommentsPanel({ auctionId }) {
                 <TopBidderTab />
             )}
 
-            <CommentComposer />
+            <CommentComposer auctionId={auctionId} />
         </section>
     );
 }
@@ -141,31 +145,94 @@ function TopBidderTab() {
     );
 }
 
-function CommentComposer() {
+function CommentComposer({ auctionId }) {
+    const { isAuthed, user, openAuthModal } = useAuth();
+    const location = useLocation();
+    const queryClient = useQueryClient();
+    const [message, setMessage] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+
+    if (!isAuthed || !user) {
+        // Honest sign-in prompt — opening the modal is the clear CTA; the
+        // disabled input makes "cannot post while signed out" explicit.
+        return (
+            <form
+                data-testid="auction-comment-form"
+                className="mt-4 flex items-center gap-2 rounded-full border border-white/[0.08] bg-black/25 px-3 py-2"
+                onSubmit={(e) => {
+                    e.preventDefault();
+                    openAuthModal({ returnTo: location.pathname });
+                }}
+            >
+                <input
+                    type="text"
+                    disabled
+                    placeholder="Sign in to join the discussion..."
+                    aria-label="Comment"
+                    className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 outline-none disabled:cursor-not-allowed"
+                />
+                <button
+                    type="submit"
+                    data-testid="auction-comment-submit"
+                    aria-label="Sign in to comment"
+                    className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bz-btn-secondary px-3 py-1.5 text-[11px] font-semibold"
+                >
+                    <LogIn className="h-3 w-3" /> Sign in
+                </button>
+            </form>
+        );
+    }
+
+    async function submitComment(e) {
+        e.preventDefault();
+        const text = message.trim();
+        if (!text || !supabase || submitting) return;
+        setSubmitting(true);
+        try {
+            const { error } = await supabase.from("comments").insert({
+                auction_id: auctionId,
+                user_id: user.id,
+                message: text,
+            });
+            if (error) throw error;
+            setMessage("");
+            await queryClient.invalidateQueries({
+                queryKey: ["auction-comments", auctionId],
+            });
+            toast.success("Comment posted");
+        } catch {
+            toast.error("Could not post your comment", {
+                description: "Please try again in a moment.",
+            });
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
     return (
         <form
             data-testid="auction-comment-form"
-            className="mt-4 flex items-center gap-2 rounded-full border border-white/[0.08] bg-black/25 px-3 py-2"
-            onSubmit={(e) => {
-                e.preventDefault();
-                toast("Sign in to join the discussion");
-            }}
+            className="mt-4 flex items-center gap-2 rounded-full border border-white/[0.08] bg-black/25 px-3 py-2 focus-within:border-[hsl(var(--bz-purple)/0.6)] transition"
+            onSubmit={submitComment}
         >
             <input
                 type="text"
-                disabled
-                placeholder="Sign in to join the discussion..."
+                data-testid="auction-comment-input"
+                value={message}
+                maxLength={1000}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Add a comment..."
                 aria-label="Comment"
-                className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 outline-none disabled:cursor-not-allowed"
+                className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 outline-none"
             />
             <button
                 type="submit"
                 data-testid="auction-comment-submit"
-                aria-label="Sign in to send"
-                className="inline-flex items-center gap-1 rounded-full bz-btn-secondary px-3 py-1.5 text-[11px] font-semibold"
+                aria-label="Send comment"
+                disabled={submitting || message.trim().length === 0}
+                className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bz-btn-secondary px-3 py-1.5 text-[11px] font-semibold disabled:opacity-50"
             >
-                <LogIn className="h-3 w-3" /> Sign in
-                <Send className="h-3 w-3 opacity-60" />
+                <Send className="h-3 w-3" /> Send
             </button>
         </form>
     );

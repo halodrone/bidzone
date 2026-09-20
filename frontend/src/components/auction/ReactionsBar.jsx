@@ -1,11 +1,22 @@
+import { useState } from "react";
 import { toast } from "sonner";
+import { useLocation } from "react-router-dom";
 import { Eye } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuctionReactions } from "@/hooks/useAuctionRoom";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 
 /**
- * Fire, watch/eyes, heart, and diamond reactions. All disabled until auth
- * is wired — a click routes to a sign-in toast rather than fabricating a row.
- * Real counts come from the reactions table via useAuctionReactions.
+ * Fire, watch/eyes, heart, diamond, rocket reactions — wired to the existing
+ * `reactions` table + RLS (select public / insert own / delete own) and the
+ * existing realtime subscription (counts refresh on any change).
+ *
+ * - Authenticated: click toggles the user's reaction (unique per
+ *   auction+user+type), with visual active state. Persists via Supabase.
+ * - Unauthenticated: click opens the existing Google sign-in modal — never a
+ *   silent failure, never an anonymous reaction row.
+ *
  * Watcher count is intentionally NOT shown as a number because RLS keeps the
  * watchlist table private (Phase 4.1) and we do not fabricate it.
  */
@@ -19,7 +30,53 @@ const REACTIONS = [
 
 export function ReactionsBar({ auctionId }) {
     const { data } = useAuctionReactions(auctionId);
+    const { isAuthed, user, openAuthModal } = useAuth();
+    const location = useLocation();
+    const queryClient = useQueryClient();
+    const [pending, setPending] = useState(null);
     const counts = data?.byType ?? {};
+
+    // The user's own reactions, derived from the same trusted server rows.
+    const mine = new Set(
+        user ? (data?.rows ?? []).filter((r) => r.user_id === user.id).map((r) => r.reaction_type) : []
+    );
+
+    async function toggleReaction(type) {
+        if (!isAuthed || !user) {
+            // Clear, honest sign-in prompt via the existing auth modal.
+            openAuthModal({ returnTo: location.pathname });
+            return;
+        }
+        if (!supabase || pending) return;
+        setPending(type);
+        try {
+            if (mine.has(type)) {
+                const { error } = await supabase
+                    .from("reactions")
+                    .delete()
+                    .eq("auction_id", auctionId)
+                    .eq("user_id", user.id)
+                    .eq("reaction_type", type);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from("reactions").insert({
+                    auction_id: auctionId,
+                    user_id: user.id,
+                    reaction_type: type,
+                });
+                if (error) throw error;
+            }
+            await queryClient.invalidateQueries({
+                queryKey: ["auction-reactions", auctionId],
+            });
+        } catch (e) {
+            toast.error("Could not save your reaction", {
+                description: "Please try again in a moment.",
+            });
+        } finally {
+            setPending(null);
+        }
+    }
 
     return (
         <section
@@ -36,28 +93,35 @@ export function ReactionsBar({ auctionId }) {
                 <WatcherBadge />
             </div>
             <ul className="flex flex-wrap gap-2">
-                {REACTIONS.map((r) => (
-                    <li key={r.type}>
-                        <button
-                            type="button"
-                            data-testid={`reaction-${r.type}`}
-                            aria-label={`React ${r.label}`}
-                            onClick={() =>
-                                toast("Sign in to react", {
-                                    description:
-                                        "We won't record a reaction until you're signed in.",
-                                })
-                            }
-                            className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.02] px-3 py-1.5 text-sm transition hover:border-[hsl(var(--bz-purple)/0.5)] hover:bg-white/[0.04]"
-                        >
-                            <span className="text-base leading-none">{r.emoji}</span>
-                            <span className="text-xs text-white/70">{r.label}</span>
-                            <span className="ml-1 rounded-full bg-black/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white/80">
-                                {counts[r.type] ?? 0}
-                            </span>
-                        </button>
-                    </li>
-                ))}
+                {REACTIONS.map((r) => {
+                    const active = mine.has(r.type);
+                    return (
+                        <li key={r.type}>
+                            <button
+                                type="button"
+                                data-testid={`reaction-${r.type}`}
+                                data-active={active ? "true" : "false"}
+                                aria-pressed={active}
+                                aria-label={active ? `Remove ${r.label} reaction` : `React ${r.label}`}
+                                disabled={pending === r.type}
+                                onClick={() => toggleReaction(r.type)}
+                                className={
+                                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition " +
+                                    (active
+                                        ? "border-[hsl(var(--bz-purple)/0.7)] bg-[hsl(var(--bz-purple)/0.16)] shadow-[0_0_20px_hsl(var(--bz-purple)/0.25)]"
+                                        : "border-white/[0.08] bg-white/[0.02] hover:border-[hsl(var(--bz-purple)/0.5)] hover:bg-white/[0.04]") +
+                                    (pending === r.type ? " opacity-60 cursor-wait" : "")
+                                }
+                            >
+                                <span className="text-base leading-none">{r.emoji}</span>
+                                <span className="text-xs text-white/70">{r.label}</span>
+                                <span className="ml-1 rounded-full bg-black/40 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-white/80">
+                                    {counts[r.type] ?? 0}
+                                </span>
+                            </button>
+                        </li>
+                    );
+                })}
             </ul>
         </section>
     );

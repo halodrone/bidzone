@@ -17,17 +17,27 @@ import { LOGOUT } from "@/constants/testIds";
 import { Copy, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+// All nav targets point at existing destinations. "Live Zone" and "Explore"
+// open the Home live-auctions section with the matching tab pre-selected
+// (the auction listing lives on the Home page — see LiveAuctionsSection).
 const NAV = [
-    { label: "Home", href: "/" },
-    { label: "Live Zone", href: "/live" },
-    { label: "Explore", href: "/explore" },
-    { label: "Create Auction", href: "/create" },
+    { label: "Home", to: "/" },
+    {
+        label: "Live Zone",
+        to: { pathname: "/", search: "?tab=live", hash: "#live-auctions" },
+    },
+    {
+        label: "Explore",
+        to: { pathname: "/", search: "?tab=all", hash: "#live-auctions" },
+    },
+    { label: "Create Auction", to: "/create" },
 ];
 
 export function Header() {
     const [mobileOpen, setMobileOpen] = useState(false);
 
     return (
+        <>
         <header
             data-testid="bidzone-header"
             className="sticky top-0 z-50 border-b border-white/[0.06] bg-[hsl(var(--bz-bg))]/85 backdrop-blur-xl"
@@ -67,8 +77,10 @@ export function Header() {
                             id="bz-search"
                             data-testid="header-search-input"
                             type="search"
-                            placeholder="Search auctions, items, or sellers..."
-                            className="w-full h-11 rounded-full bg-[hsl(var(--bz-surface))]/70 border border-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-white/40 outline-none transition focus:border-[hsl(var(--bz-purple)/0.6)] focus:bg-[hsl(var(--bz-surface))]"
+                            disabled
+                            title="Search is coming soon"
+                            placeholder="Search — coming soon"
+                            className="w-full h-11 rounded-full bg-[hsl(var(--bz-surface))]/70 border border-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-white/40 outline-none cursor-not-allowed"
                         />
                     </label>
                 </div>
@@ -80,8 +92,8 @@ export function Header() {
                 >
                     {NAV.map((n) => (
                         <Link
-                            key={n.href}
-                            to={n.href}
+                            key={n.label}
+                            to={n.to}
                             data-testid={`nav-${n.label.toLowerCase().replace(/\s+/g, "-")}`}
                             className="rounded-full px-3 py-2 text-white/70 hover:text-white hover:bg-white/[0.04] transition-colors"
                         >
@@ -95,8 +107,10 @@ export function Header() {
                     <button
                         type="button"
                         data-testid="header-notifications"
-                        aria-label="Notifications"
-                        className="relative h-10 w-10 rounded-full border border-white/[0.08] bg-[hsl(var(--bz-surface))]/60 hover:bg-[hsl(var(--bz-surface))] hover:border-white/20 transition flex items-center justify-center"
+                        aria-label="Notifications — coming soon"
+                        aria-disabled="true"
+                        title="Notifications are coming soon"
+                        className="relative h-10 w-10 rounded-full border border-white/[0.08] bg-[hsl(var(--bz-surface))]/60 flex items-center justify-center opacity-50 cursor-not-allowed"
                     >
                         <Bell className="h-4 w-4 text-white/70" />
                     </button>
@@ -123,17 +137,23 @@ export function Header() {
                         id="bz-search-m"
                         data-testid="header-search-input-mobile"
                         type="search"
-                        placeholder="Search auctions, items, or sellers..."
-                        className="w-full h-11 rounded-full bg-[hsl(var(--bz-surface))]/70 border border-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-white/40 outline-none focus:border-[hsl(var(--bz-purple)/0.6)]"
+                        disabled
+                        title="Search is coming soon"
+                        placeholder="Search — coming soon"
+                        className="w-full h-11 rounded-full bg-[hsl(var(--bz-surface))]/70 border border-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-white/40 outline-none cursor-not-allowed"
                     />
                 </label>
             </div>
 
-            {/* Mobile drawer */}
-            {mobileOpen && (
-                <MobileNav onClose={() => setMobileOpen(false)} />
-            )}
         </header>
+
+        {/* Mobile drawer — rendered OUTSIDE <header> on purpose: the header's
+            backdrop-blur creates a containing block for position:fixed, which
+            clipped the fixed drawer to the header box on mobile (top clipping). */}
+        {mobileOpen && (
+            <MobileNav onClose={() => setMobileOpen(false)} />
+        )}
+        </>
     );
 }
 
@@ -369,6 +389,10 @@ function MobileAuthSlot() {
 }
 
 function MobileNav({ onClose }) {
+    const { isAuthed } = useAuth();
+    const drawerLinkClass =
+        "flex items-center justify-between rounded-xl px-4 py-3 text-white/80 hover:text-white hover:bg-white/[0.04] transition";
+
     return (
         <div
             className="md:hidden fixed inset-0 z-[60]"
@@ -397,16 +421,38 @@ function MobileNav({ onClose }) {
                 <nav className="flex flex-col gap-1">
                     {NAV.map((n) => (
                         <Link
-                            key={n.href}
-                            to={n.href}
+                            key={n.label}
+                            to={n.to}
                             onClick={onClose}
                             data-testid={`mobile-nav-${n.label.toLowerCase().replace(/\s+/g, "-")}`}
-                            className="flex items-center justify-between rounded-xl px-4 py-3 text-white/80 hover:text-white hover:bg-white/[0.04] transition"
+                            className={drawerLinkClass}
                         >
                             <span className="text-sm font-medium">{n.label}</span>
                             <ChevronRight className="h-4 w-4 text-white/30" />
                         </Link>
                     ))}
+                    {isAuthed && (
+                        <>
+                            <Link
+                                to="/profile"
+                                onClick={onClose}
+                                data-testid="mobile-nav-profile"
+                                className={drawerLinkClass}
+                            >
+                                <span className="text-sm font-medium">Profile</span>
+                                <ChevronRight className="h-4 w-4 text-white/30" />
+                            </Link>
+                            <Link
+                                to="/wallet"
+                                onClick={onClose}
+                                data-testid="mobile-nav-wallet"
+                                className={drawerLinkClass}
+                            >
+                                <span className="text-sm font-medium">Wallet</span>
+                                <ChevronRight className="h-4 w-4 text-white/30" />
+                            </Link>
+                        </>
+                    )}
                 </nav>
                 <div className="mt-8 pt-6 border-t border-white/[0.06]">
                     <MobileAuthSlot />

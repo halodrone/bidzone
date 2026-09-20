@@ -1,10 +1,12 @@
 import { Link } from "react-router-dom";
-import { Radio, TrendingUp, Timer, LayoutGrid, AlertTriangle } from "lucide-react";
-import { useState } from "react";
+import { Radio, TrendingUp, Timer, LayoutGrid, AlertTriangle, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useLiveAuctions } from "@/hooks/useLiveAuctions";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { AuctionCard, AuctionCardSkeleton } from "@/components/home/AuctionCard";
 import { EmptyState } from "@/components/home/EmptyState";
+import { CATEGORIES } from "@/components/home/CategorySection";
 
 const TABS = [
     { key: "live",         label: "Live",         icon: Radio },
@@ -13,16 +15,38 @@ const TABS = [
     { key: "all",          label: "All",          icon: LayoutGrid },
 ];
 
+const VALID_TABS = new Set(TABS.map((t) => t.key));
+
 export function LiveAuctionsSection() {
-    const [filter, setFilter] = useState("live");
-    const { data, isLoading, isError } = useLiveAuctions(filter, 12);
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tabParam = searchParams.get("tab");
+    const category = searchParams.get("category") || "";
+    const [filter, setFilter] = useState(() =>
+        VALID_TABS.has(tabParam) ? tabParam : "live"
+    );
+
+    // Functional navigation: when the user arrives via a nav link (?tab=...),
+    // sync the section's tab with the requested one. Runs on mount + whenever
+    // the requested tab changes; local tab clicks stay untouched afterwards.
+    useEffect(() => {
+        if (VALID_TABS.has(tabParam)) setFilter(tabParam);
+    }, [tabParam]);
+
+    const { data, isLoading, isError } = useLiveAuctions(filter, 12, category);
     const auctions = data ?? [];
+    const categoryLabel = CATEGORIES.find((c) => c.slug === category)?.label;
+
+    function clearCategory() {
+        const next = new URLSearchParams(searchParams);
+        next.delete("category");
+        setSearchParams(next);
+    }
 
     return (
         <section
             data-testid="home-live-auctions"
             id="live-auctions"
-            className="mx-auto max-w-[1400px] px-4 md:px-8 py-8 md:py-16"
+            className="mx-auto max-w-[1400px] scroll-mt-32 px-4 md:scroll-mt-24 md:px-8 py-8 md:py-16"
         >
             <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
@@ -36,6 +60,19 @@ export function LiveAuctionsSection() {
                         Real-time bidding. Live activity. Don't miss out.
                     </p>
                 </div>
+                {category && (
+                    <button
+                        type="button"
+                        data-testid="live-auctions-category-chip"
+                        onClick={clearCategory}
+                        title="Clear category filter"
+                        className="inline-flex shrink-0 items-center gap-2 self-start rounded-full border border-[hsl(var(--bz-purple)/0.55)] bg-[hsl(var(--bz-purple)/0.14)] px-4 py-2 text-sm font-medium text-white transition hover:bg-[hsl(var(--bz-purple)/0.22)]"
+                    >
+                        <span className="text-white/60">Category:</span>
+                        {categoryLabel || category}
+                        <X className="h-3.5 w-3.5 text-white/70" />
+                    </button>
+                )}
             </header>
 
             {/* Tabs */}

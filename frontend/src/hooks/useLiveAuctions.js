@@ -15,9 +15,9 @@ import { resolveMediaUrls } from "@/lib/storage";
  * so the Home page renders its polished empty state.
  * We never fabricate auction rows.
  */
-export function useLiveAuctions(filter = "live", limit = 12) {
+export function useLiveAuctions(filter = "live", limit = 12, category = "") {
     return useQuery({
-        queryKey: ["home-auctions", filter, limit],
+        queryKey: ["home-auctions", filter, limit, category],
         enabled: isSupabaseConfigured,
         staleTime: 15_000,
         refetchInterval: 30_000,
@@ -39,6 +39,8 @@ export function useLiveAuctions(filter = "live", limit = 12) {
                 .limit(limit);
 
             let q = base;
+            // Optional category filter (used by the category cards on Home).
+            if (category) q = q.eq("category", category);
             if (filter === "live") {
                 q = q.eq("status", "LIVE").order("end_time", { ascending: true });
             } else if (filter === "ending-soon") {
