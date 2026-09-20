@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
     Search,
     Bell,
@@ -140,6 +140,7 @@ export function Header() {
 function WalletButton() {
     const { isAuthed, profile, user, openAuthModal, signOut } = useAuth();
     const location = useLocation();
+    const navigate = useNavigate();
 
     if (!isAuthed) {
         return (
@@ -168,18 +169,26 @@ function WalletButton() {
             data-testid="header-user-chip"
             className="hidden sm:inline-flex items-center gap-2 h-10 pl-1.5 pr-2 rounded-full bz-btn-secondary text-sm"
         >
-            <span className="h-7 w-7 overflow-hidden rounded-full bg-[hsl(var(--bz-surface))] border border-white/10 flex items-center justify-center text-[11px] text-white/80">
-                {profile && profile.avatar_url ? (
-                    <img
-                        src={profile.avatar_url}
-                        alt=""
-                        className="h-full w-full object-cover"
-                    />
-                ) : (
-                    initial
-                )}
-            </span>
-            <span className="max-w-[120px] truncate font-medium">{name}</span>
+            <button
+                type="button"
+                data-testid="header-wallet-link"
+                title="Open wallet"
+                onClick={() => navigate("/wallet")}
+                className="flex items-center gap-2 outline-none"
+            >
+                <span className="h-7 w-7 overflow-hidden rounded-full bg-[hsl(var(--bz-surface))] border border-white/10 flex items-center justify-center text-[11px] text-white/80">
+                    {profile && profile.avatar_url ? (
+                        <img
+                            src={profile.avatar_url}
+                            alt=""
+                            className="h-full w-full object-cover"
+                        />
+                    ) : (
+                        initial
+                    )}
+                </span>
+                <span className="max-w-[120px] truncate font-medium">{name}</span>
+            </button>
             <WalletChip />
             <button
                 type="button"
