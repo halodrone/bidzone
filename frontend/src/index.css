@@ -215,6 +215,54 @@
     background: hsl(var(--bz-surface-2));
 }
 
+/* Form controls — dark BIDZONE inputs (Create Auction form, bid input).     */
+/* The class was previously undefined, so inputs fell back to native white.  */
+.bz-input {
+    background: hsl(var(--bz-bg) / 0.8);
+    border: 1px solid hsl(var(--bz-border-strong));
+    border-radius: 12px;
+    color: hsl(var(--bz-text));
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    outline: none;
+    transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease,
+        background 160ms ease;
+}
+.bz-input::placeholder {
+    color: hsl(var(--bz-text-muted) / 0.8);
+}
+.bz-input:hover {
+    border-color: hsl(var(--bz-purple) / 0.35);
+}
+.bz-input:focus {
+    border-color: hsl(var(--bz-purple) / 0.7);
+    box-shadow: 0 0 0 3px hsl(var(--bz-purple) / 0.18);
+    background: hsl(var(--bz-surface) / 0.9);
+}
+.bz-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Dark select + custom chevron + dark native dropdown list */
+select.bz-input {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2.25rem;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 14px;
+    cursor: pointer;
+}
+select.bz-input option {
+    background: hsl(var(--bz-surface));
+    color: hsl(var(--bz-text));
+}
+
 /* Live pulsing dot */
 .bz-live-dot {
     position: relative;

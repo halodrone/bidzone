@@ -330,7 +330,7 @@ function CreateForm() {
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Starting bid (MON)">
                         <input
-                            className="bz-input w-full"
+                            className="bz-input w-full sm:w-40"
                             data-testid="create-starting-bid"
                             value={form.startingBid}
                             onChange={set("startingBid")}
@@ -340,7 +340,7 @@ function CreateForm() {
                     </Field>
                     <Field label="Minimum increment (MON)">
                         <input
-                            className="bz-input w-full"
+                            className="bz-input w-full sm:w-40"
                             data-testid="create-min-increment"
                             value={form.minimumIncrement}
                             onChange={set("minimumIncrement")}
@@ -351,7 +351,7 @@ function CreateForm() {
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Duration">
-                        <select className="bz-input w-full" data-testid="create-duration" value={form.durationHours} onChange={set("durationHours")}>
+                        <select className="bz-input w-full sm:w-44" data-testid="create-duration" value={form.durationHours} onChange={set("durationHours")}>
                             {DURATIONS.map((d) => (
                                 <option key={d.hours} value={d.hours}>{d.label}</option>
                             ))}
@@ -359,7 +359,7 @@ function CreateForm() {
                     </Field>
                     <Field label="Anti-sniping window (seconds)">
                         <input
-                            className="bz-input w-full"
+                            className="bz-input w-full sm:w-40"
                             data-testid="create-anti-sniping"
                             value={form.antiSniping}
                             onChange={set("antiSniping")}
