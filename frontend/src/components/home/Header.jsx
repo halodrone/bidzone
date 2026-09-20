@@ -171,9 +171,9 @@ function WalletButton() {
         >
             <button
                 type="button"
-                data-testid="header-wallet-link"
-                title="Open wallet"
-                onClick={() => navigate("/wallet")}
+                data-testid="header-profile-link"
+                title="Open profile"
+                onClick={() => navigate("/profile")}
                 className="flex items-center gap-2 outline-none"
             >
                 <span className="h-7 w-7 overflow-hidden rounded-full bg-[hsl(var(--bz-surface))] border border-white/10 flex items-center justify-center text-[11px] text-white/80">
@@ -212,6 +212,7 @@ function WalletButton() {
 function WalletChip() {
     const { status, address, balance } = useWallet();
     const [copied, setCopied] = useState(false);
+    const navigate = useNavigate();
 
     if (status === "provisioning") {
         return (
@@ -262,17 +263,24 @@ function WalletChip() {
     return (
         <span
             data-testid="wallet-chip-ready"
-            title={`${address} — ${balance || "Wallet ready"}`}
             className="ml-1 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/25 px-2 py-1 text-[10px] text-white/75"
         >
-            <span className="text-[hsl(var(--bz-purple))]">◆</span>
-            <span data-testid="wallet-address" className="tabular-nums">
-                {shortenAddress(address)}
-            </span>
-            <span className="text-white/40">·</span>
-            <span data-testid="wallet-balance" className="text-white/55">
-                {balance || "Wallet ready"}
-            </span>
+            <button
+                type="button"
+                data-testid="wallet-chip-open"
+                title="Open wallet — withdraw MON"
+                onClick={() => navigate("/wallet")}
+                className="inline-flex items-center gap-1 outline-none"
+            >
+                <span className="text-[hsl(var(--bz-purple))]">◆</span>
+                <span data-testid="wallet-address" className="tabular-nums">
+                    {shortenAddress(address)}
+                </span>
+                <span className="text-white/40">·</span>
+                <span data-testid="wallet-balance" className="text-white/55">
+                    {balance || "Wallet ready"}
+                </span>
+            </button>
             <button
                 type="button"
                 data-testid="wallet-copy"

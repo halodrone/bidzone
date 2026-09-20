@@ -20,7 +20,7 @@ export function NotFound() {
                 Auction not found.
             </h1>
             <p className="mt-3 text-sm text-white/55">
-                The listing you're looking for isn't available anymore. It may have
+                The listing you are looking for is not available anymore. It may have
                 ended, been withdrawn, or never existed.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">

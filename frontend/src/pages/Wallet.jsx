@@ -90,6 +90,15 @@ export default function Wallet() {
         setFieldError(null);
         try {
             const hash = await signTransaction({ to, valueMon: amount });
+            // Local withdrawal history (device-scoped; the Profile page reads
+            // this and enriches each entry with the on-chain receipt status).
+            try {
+                const list = JSON.parse(localStorage.getItem("bz_withdraw_history") || "[]");
+                list.unshift({ hash, to, amount: String(amount), at: new Date().toISOString() });
+                localStorage.setItem("bz_withdraw_history", JSON.stringify(list.slice(0, 25)));
+            } catch {
+                // history is best-effort only
+            }
             setTxHash(hash);
             setTxStatus("pending");
             setStep("sent");
