@@ -28,7 +28,7 @@ import { MONAD } from "@/lib/monad";
 export function BiddingPanel({ auction }) {
     const minNext = useMinimumNextBid(auction);
     const { session, profile } = useAuth();
-    const { status: walletStatus } = useWallet();
+    const { status: walletStatus, privyWallet, address: walletAddress } = useWallet();
     if (!auction) return null;
 
     const isLive = auction.status === "LIVE";
@@ -99,6 +99,21 @@ export function BiddingPanel({ auction }) {
             )}
             {!isLive && isAuthed && !isSeller && <BidCTA isLive={isLive} status={auction.status} />}
             {!isAuthed && <BidCTA isLive={isLive} status={auction.status} />}
+
+            {/* Refunds exist exactly when the auction is OVER (outbid escrow is
+                claimable after being outbid / settlement), so the panel must
+                render OUTSIDE the LIVE-only BidForm — previously losing bidders
+                on ENDED auctions could never withdraw. Self-guarded: renders
+                only when the on-chain path is on, the wallet is ready, and
+                refundOf > 0 for this wallet. */}
+            {!isLive && isAuthed && !isSeller && (
+                <RefundPanel
+                    auctionUuid={auction.id}
+                    walletAddress={walletAddress}
+                    onchainOn={isOnchainAvailable() && walletStatus === "ready"}
+                    privyWallet={privyWallet}
+                />
+            )}
 
             <p className="mt-3 flex items-center gap-1.5 text-[11px] text-white/45">
                 <LockKeyhole className="h-3 w-3 text-[hsl(var(--bz-purple))]" />

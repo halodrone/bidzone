@@ -37,12 +37,8 @@ export async function registerOrReconcileAuction({ wallet, auction }) {
 
     const idHex = auctionIdFromUuid(auction.id);
 
-    // Duplicate protection — read BEFORE any transaction.
-    const status = await readAuctionStatus(auction.id);
-    if (status != null && status !== 0n) {
-        // Already registered on-chain: reconcile the DB row (no new tx).
-        // creation_tx_hash is unknown here (the original tx was never recorded
-        // or happened elsewhere) — leave it untouched.
+    // Reconcile path — the auction exists on-chain: NEVER re-create, sync the DB row.
+    async function reconcile() {
         if (!auction.contract_auction_id) {
             const { error } = await supabase
                 .from("auctions")
@@ -59,6 +55,20 @@ export async function registerOrReconcileAuction({ wallet, auction }) {
             }
         }
         return { reconciled: true, hash: null, contractAuctionId: idHex };
+    }
+
+    // Duplicate protection — read BEFORE any transaction.
+    const status = await readAuctionStatus(auction.id);
+    if (status != null && status !== 0n) {
+        return reconcile();
+    }
+    // Second confirmatory read: the public RPC can serve STALE pre-registration
+    // state from a lagging node (observed: a re-click then submitted a duplicate
+    // create that reverted and burned gas). If either read sees the auction
+    // on-chain, reconcile instead of re-creating.
+    const status2 = await readAuctionStatus(auction.id).catch(() => null);
+    if (status2 != null && status2 !== 0n) {
+        return reconcile();
     }
 
     // Status.None — submit the real create transaction and wait for confirmation.

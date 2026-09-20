@@ -73,12 +73,41 @@ export async function readRefund(uuid, address) {
 export async function readAuctionStatus(uuid) {
     if (!isOnchainAvailable()) return null;
     const id = auctionIdFromUuid(uuid);
-    return readClient.readContract({
+    const status = await readClient.readContract({
         address: MONAD.contractAddress,
         abi: BIDZONE_ABI,
         functionName: "statusOf",
         args: [id],
     });
+    // viem decodes uint8 outputs as JS `number`, while callers compare against
+    // `0n` (BigInt). `0 !== 0n` is TRUE in JS (different types), which made
+    // every unregistered auction look registered (false-positive reconcile,
+    // Phase 6.5b bug). Normalize to BigInt at the source — matches the
+    // documented return contract ("Status enum value", 0 = Status.None).
+    return status == null ? null : BigInt(status);
+}
+
+/**
+ * Resilient receipt wait — the public Monad RPC drops requests under polling,
+ * which made post-tx Supabase mirrors silently fail (bid/registration rows
+ * never written while the chain state was fine). Retry with a generous
+ * timeout; rethrows the last error if all attempts fail.
+ */
+async function waitReceipt(hash) {
+    let lastErr;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            return await readClient.waitForTransactionReceipt({
+                hash,
+                timeout: 60_000,
+                pollingInterval: 1_000,
+            });
+        } catch (e) {
+            lastErr = e;
+            await new Promise((r) => setTimeout(r, 1_500 * (attempt + 1)));
+        }
+    }
+    throw lastErr;
 }
 
 /** Seller creates an on-chain auction (used at publish time by seller flow). */
@@ -98,7 +127,7 @@ export async function createAuctionOnchain({ wallet, uuid, startingBidMon, minim
             Number(antiSnipeSeconds || 10),
         ],
     });
-    const receipt = await readClient.waitForTransactionReceipt({ hash });
+    const receipt = await waitReceipt(hash);
     return { hash, receipt };
 }
 
@@ -113,7 +142,7 @@ export async function placeBidOnchain({ wallet, uuid, bidMon }) {
         args: [id],
         value: parseEther(String(bidMon)),
     });
-    const receipt = await readClient.waitForTransactionReceipt({ hash });
+    const receipt = await waitReceipt(hash);
     return { hash, receipt };
 }
 
@@ -127,7 +156,7 @@ export async function settleAuctionOnchain({ wallet, uuid }) {
         functionName: "settleAuction",
         args: [id],
     });
-    const receipt = await readClient.waitForTransactionReceipt({ hash });
+    const receipt = await waitReceipt(hash);
     return { hash, receipt };
 }
 
@@ -141,7 +170,7 @@ export async function withdrawRefundOnchain({ wallet, uuid }) {
         functionName: "withdrawRefund",
         args: [id],
     });
-    const receipt = await readClient.waitForTransactionReceipt({ hash });
+    const receipt = await waitReceipt(hash);
     return { hash, receipt };
 }
 
