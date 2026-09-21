@@ -7,6 +7,7 @@ import { Footer } from "@/components/home/Footer";
 import { useAuth } from "@/context/AuthContext";
 import { useWallet } from "@/context/WalletContext";
 import { publicClient, MONAD } from "@/lib/monad";
+import { MyActivity } from "@/components/profile/MyActivity";
 
 /**
  * BIDZONE Profile (Phase 8 — Security + Profile).
@@ -320,6 +321,9 @@ export default function Profile() {
                         strict.
                     </p>
                 </section>
+
+                {/* Phase 7 — MY ACTIVITY: bids, purchases (fulfillment) and sales */}
+                <MyActivity />
             </main>
             <Footer />
         </div>

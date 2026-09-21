@@ -48,13 +48,24 @@ export function AuctionInfo({ auction }) {
                         value={new Date(auction.start_time).toLocaleString()}
                     />
                 )}
-                {auction.allowed_regions?.length ? (
+                {auction.allowed_regions?.length || auction.shipping_origin ? (
                     <Row
-                        label="Regions"
+                        label={
+                            auction.auction_type === "PHYSICAL" ? "Shipping" : "Regions"
+                        }
                         value={
-                            auction.allowed_regions.includes("GLOBAL")
-                                ? "Global"
-                                : auction.allowed_regions.join(", ")
+                            [
+                                auction.shipping_origin
+                                    ? `Ships from ${auction.shipping_origin}`
+                                    : null,
+                                auction.allowed_regions?.length
+                                    ? auction.allowed_regions.includes("GLOBAL")
+                                        ? "Available worldwide"
+                                        : `Available to ${auction.allowed_regions.join(", ")}`
+                                    : null,
+                            ]
+                                .filter(Boolean)
+                                .join(" · ") || "—"
                         }
                     />
                 ) : null}

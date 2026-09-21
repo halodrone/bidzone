@@ -25,7 +25,7 @@ export function useAuction(auctionId) {
                     id, title, description, category, condition, auction_type, status,
                     starting_bid, current_bid, minimum_increment,
                     start_time, end_time, anti_sniping_seconds, closed_at,
-                    allowed_regions,
+                    allowed_regions, shipping_origin,
                     contract_auction_id, chain_id, contract_address, creation_tx_hash,
                     seller:profiles!auctions_seller_id_fkey (
                         id, username, display_name, avatar_url, reputation_score, wallet_address

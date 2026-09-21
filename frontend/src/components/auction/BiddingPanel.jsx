@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Gavel, LogIn, LockKeyhole, TimerOff, Wallet as WalletIcon, Loader2, ExternalLink, Coins } from "lucide-react";
+import { Gavel, LogIn, LockKeyhole, TimerOff, Wallet as WalletIcon, Loader2, ExternalLink, Coins, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { fmtAmount } from "@/components/auction/format";
 import { useMinimumNextBid, compareDecimals, submitBid } from "@/hooks/useAuctionRoom";
 import { useAuth } from "@/context/AuthContext";
 import { useWallet } from "@/context/WalletContext";
+import { useMyAddresses } from "@/lib/shipping";
+import { AddressModal } from "@/components/auction/AddressModal";
 import {
     isOnchainAvailable,
     placeBidOnchain,
@@ -143,12 +145,26 @@ function BidForm({ auction, minNext, walletStatus }) {
     const [amount, setAmount] = useState(() => (minNext ? String(minNext) : ""));
     const [phase, setPhase] = useState("idle"); // idle | signing | pending | confirmed
     const [lastTxHash, setLastTxHash] = useState(null);
+    const [addrModalOpen, setAddrModalOpen] = useState(false);
     const submitting = phase !== "idle" && phase !== "confirmed";
     const onchainOn = isOnchainAvailable();
     const canOnchain = onchainOn && walletStatus === "ready" && privyWallet;
+    // Phase 7 — PHYSICAL auctions require the buyer to own a shipping
+    // address BEFORE bidding (existence only; the DB trigger
+    // tg_require_physical_address enforces the same rule server-side).
+    const isPhysical = auction.auction_type === "PHYSICAL";
+    const { data: myAddresses } = useMyAddresses();
+    const hasAddress = (myAddresses?.length ?? 0) > 0;
 
     async function placeBid() {
         if (submitting) return;
+        if (isPhysical && !hasAddress) {
+            toast.error("Add a shipping address before bidding on physical items.", {
+                description: "Your address stays private — only the seller of an order you win ever sees it.",
+            });
+            setAddrModalOpen(true);
+            return;
+        }
         const value = String(amount || "").trim();
         if (!value || isNaN(Number(value)) || Number(value) <= 0) {
             toast.error("Enter a valid bid amount");
@@ -251,6 +267,23 @@ function BidForm({ auction, minNext, walletStatus }) {
                         MON
                     </span>
                 </div>
+                {isPhysical && (
+                    <button
+                        type="button"
+                        data-testid="bid-add-address"
+                        onClick={() => setAddrModalOpen(true)}
+                        title={hasAddress ? "Manage your shipping address" : "Add the shipping address required to bid"}
+                        className={
+                            "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-xs font-semibold transition " +
+                            (hasAddress
+                                ? "bz-btn-secondary"
+                                : "border border-[hsl(var(--bz-purple)/0.6)] bg-[hsl(var(--bz-purple)/0.14)] text-white")
+                        }
+                    >
+                        <MapPin className="h-3.5 w-3.5 text-[hsl(var(--bz-purple))]" />
+                        {hasAddress ? "Address ✓" : "Add Address"}
+                    </button>
+                )}
                 <button
                     type="button"
                     data-testid="bid-submit"
@@ -268,6 +301,17 @@ function BidForm({ auction, minNext, walletStatus }) {
                     {phase !== "signing" && phase !== "pending" && "Place Bid"}
                 </button>
             </div>
+            {isPhysical && (
+                <p
+                    data-testid="bid-physical-note"
+                    className="mt-2 flex items-start gap-1.5 text-[11px] text-white/50"
+                >
+                    <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-[hsl(var(--bz-purple))]" />
+                    {hasAddress
+                        ? "Physical item — your saved shipping address will be used only if you win."
+                        : "Physical item — add a shipping address to enable bidding."}
+                </p>
+            )}
             {lastTxHash && (
                 <a
                     href={toExplorerTx(lastTxHash)}
@@ -280,6 +324,10 @@ function BidForm({ auction, minNext, walletStatus }) {
                     View last transaction on {MONAD.networkName}
                 </a>
             )}
+            <AddressModal
+                open={addrModalOpen}
+                onClose={() => setAddrModalOpen(false)}
+            />
             <RefundPanel auctionUuid={auction.id} walletAddress={walletAddress} onchainOn={onchainOn && walletStatus === "ready"} privyWallet={privyWallet} />
         </div>
     );

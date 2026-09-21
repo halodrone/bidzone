@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, Loader2, LogIn, FileText } from "lucide-react";
+import { AlertCircle, Loader2, LogIn, FileText, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/home/Header";
 import { Footer } from "@/components/home/Footer";
@@ -50,7 +50,20 @@ const initialForm = {
     minimumIncrement: "",
     durationHours: "24",
     antiSniping: "10",
+    shippingOrigin: "",
+    allowedRegions: ["GLOBAL"],
 };
+
+// Phase 7 — destination options for PHYSICAL auctions (public, transparent).
+const REGION_OPTIONS = [
+    { value: "GLOBAL", label: "Worldwide" },
+    { value: "ID", label: "Indonesia" },
+    { value: "SEA", label: "Southeast Asia" },
+    { value: "ASIA", label: "Asia" },
+    { value: "EU", label: "Europe" },
+    { value: "NA", label: "North America" },
+    { value: "OCE", label: "Oceania" },
+];
 
 /**
  * BIDZONE Phase 6.1 — Create Auction with media.
@@ -104,6 +117,16 @@ function CreateForm() {
             return setError("Starting bid must be a number ≥ 0");
         if (!form.minimumIncrement || isNaN(Number(form.minimumIncrement)) || Number(form.minimumIncrement) <= 0)
             return setError("Minimum increment must be a number > 0");
+        // Phase 7 — PHYSICAL auctions ship in the real world: origin and at
+        // least one destination are required (no hidden terms — BIDZONE stays
+        // fully transparent; the 72h shipping deadline is fixed by the
+        // existing lifecycle and shown to the seller as info).
+        if (form.auctionType === "PHYSICAL") {
+            if (!form.shippingOrigin.trim())
+                return setError("Shipping origin is required for physical items");
+            if (!(form.allowedRegions.length > 0))
+                return setError("Select at least one allowed destination");
+        }
 
         const user = session?.user;
         if (!user) return setError("Sign in required");
@@ -130,11 +153,24 @@ function CreateForm() {
                     end_time: end.toISOString(),
                     anti_sniping_seconds: Number(form.antiSniping) || 10,
                     status: "DRAFT",
-                    allowed_regions: ["GLOBAL"],
+                    allowed_regions: form.allowedRegions.length
+                        ? form.allowedRegions
+                        : ["GLOBAL"],
+                    shipping_origin:
+                        form.auctionType === "PHYSICAL"
+                            ? form.shippingOrigin.trim() || null
+                            : null,
                 })
                 .select("id")
                 .single();
-            if (aErr) throw new Error(aErr.message);
+            if (aErr) {
+                if (/shipping_origin|PGRST204|column .* does not exist/i.test(aErr.message || "")) {
+                    throw new Error(
+                        "Physical auctions need the Phase 7 database migration — run supabase/migrations/20260204000001_bidzone_physical_auction.sql in the Supabase SQL Editor first."
+                    );
+                }
+                throw new Error(aErr.message);
+            }
             auctionId = auction.id;
             setDraftId(auctionId);
 
@@ -368,6 +404,67 @@ function CreateForm() {
                         />
                     </Field>
                 </div>
+
+                {form.auctionType === "PHYSICAL" && (
+                    <>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <Field label="Shipping origin">
+                                <input
+                                    className="bz-input w-full sm:w-56"
+                                    data-testid="create-shipping-origin"
+                                    value={form.shippingOrigin}
+                                    onChange={set("shippingOrigin")}
+                                    maxLength={80}
+                                    placeholder="e.g. Jakarta, Indonesia"
+                                />
+                            </Field>
+                            <Field label="Shipping deadline">
+                                <div
+                                    data-testid="create-shipping-deadline-note"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-black/25 px-3 py-2.5 text-xs text-white/60"
+                                >
+                                    <Truck className="h-3.5 w-3.5 shrink-0 text-[hsl(var(--bz-purple))]" />
+                                    Seller ships within 72 hours after payment is secured
+                                    (BIDZONE standard).
+                                </div>
+                            </Field>
+                        </div>
+                        <Field label="Allowed destinations">
+                            <div
+                                data-testid="create-regions"
+                                className="flex flex-wrap gap-2"
+                            >
+                                {REGION_OPTIONS.map((r) => {
+                                    const active = form.allowedRegions.includes(r.value);
+                                    return (
+                                        <button
+                                            key={r.value}
+                                            type="button"
+                                            data-testid={`create-region-${r.value}`}
+                                            aria-pressed={active}
+                                            onClick={() =>
+                                                setForm((f) => ({
+                                                    ...f,
+                                                    allowedRegions: active
+                                                        ? f.allowedRegions.filter((x) => x !== r.value)
+                                                        : [...f.allowedRegions, r.value],
+                                                }))
+                                            }
+                                            className={
+                                                "inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition " +
+                                                (active
+                                                    ? "border-[hsl(var(--bz-purple)/0.6)] bg-[hsl(var(--bz-purple)/0.16)] text-white"
+                                                    : "border-white/[0.1] bg-white/[0.02] text-white/60 hover:text-white hover:border-white/25")
+                                            }
+                                        >
+                                            {r.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </Field>
+                    </>
+                )}
             </div>
 
             <MediaUploader media={media} setMedia={setMedia} />
