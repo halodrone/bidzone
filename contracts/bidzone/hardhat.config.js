@@ -31,7 +31,14 @@ module.exports = {
     monadTestnet: {
       url: MONAD_TESTNET_RPC_URL,
       chainId: Number(MONAD_TESTNET_CHAIN_ID),
-      accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
+      accounts: DEPLOYER_PRIVATE_KEY
+        ? [
+            // Accept keys with or without the 0x prefix.
+            DEPLOYER_PRIVATE_KEY.startsWith("0x")
+              ? DEPLOYER_PRIVATE_KEY
+              : "0x" + DEPLOYER_PRIVATE_KEY,
+          ]
+        : [],
     },
   },
   paths: {

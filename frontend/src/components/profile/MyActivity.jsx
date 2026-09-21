@@ -19,6 +19,7 @@ import {
 import { shortAddr } from "@/components/auction/format";
 import { useWallet } from "@/context/WalletContext";
 import { readNftOwner, sendNftOnchain } from "@/lib/nft";
+import { NFT_ESCROW_ADDRESS } from "@/lib/nft";
 import { MONAD } from "@/lib/monad";
 
 /**
@@ -902,12 +903,14 @@ function useOnchainOwnership(tokens) {
 
 function CollectionCard({ token }) {
     const { user, session, profile } = useAuth();
+    const escrowAddr = (NFT_ESCROW_ADDRESS || "").toLowerCase();
     const [open, setOpen] = useState(false);
     const owner = token.onchain_owner; // undefined = loading, null = unavailable
     const mine =
         owner && profile?.wallet_address
             ? String(owner).toLowerCase() === String(profile.wallet_address).toLowerCase()
             : false;
+    const inAuction = owner && escrowAddr ? owner === escrowAddr : false;
     const loading = token.onchain_owner === undefined;
 
     const [acq, setAcq] = useState(null);
@@ -954,7 +957,13 @@ function CollectionCard({ token }) {
                             : "border-white/15 bg-white/[0.04] text-white/60"
                     }`}
                 >
-                    {loading ? "checking…" : mine ? "Owned" : "Transferred"}
+                    {loading
+                        ? "checking…"
+                        : mine
+                        ? "Owned"
+                        : inAuction
+                        ? "In auction"
+                        : "Transferred"}
                 </span>
             </div>
             <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-white/50">
@@ -968,10 +977,10 @@ function CollectionCard({ token }) {
                     )}
                     {acq ? ` · ${new Date(acq.created_at).toLocaleDateString()}` : ""}
                 </span>
-                {mine && (
+                {(mine || inAuction) && (
                     <button type="button" data-testid="collection-open-detail" onClick={() => setOpen(true)}
                         className="bz-btn-secondary rounded-full px-3 py-1 font-semibold">
-                        Detail / Send
+                        {mine ? "Detail / Send" : "View detail"}
                     </button>
                 )}
                 {acq?.tx_hash && (
@@ -981,7 +990,13 @@ function CollectionCard({ token }) {
                     </a>
                 )}
             </div>
-            <SendNftModal open={open} onClose={() => setOpen(false)} token={token} walletAddress={profile?.wallet_address} session={session} />
+            <SendNftModal
+                open={open && mine}
+                onClose={() => setOpen(false)}
+                token={token}
+                walletAddress={profile?.wallet_address}
+                session={session}
+            />
         </li>
     );
 }

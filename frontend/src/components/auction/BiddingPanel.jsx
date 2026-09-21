@@ -16,6 +16,7 @@ import {
     toExplorerTx,
     fromWei,
 } from "@/lib/bidzoneAuction";
+import { isNftAvailable, placeBidNftOnchain } from "@/lib/nft";
 import { MONAD } from "@/lib/monad";
 
 /**
