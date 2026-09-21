@@ -451,3 +451,29 @@ export async function placeBidNftOnchain({ wallet, nftContract, tokenId, bidMon 
 }
 
 export { sameAddr, norm as normalizeAddress, readClient as nftReadClient, ERC721_ABI };
+
+/* ====================== NFT ESCROW REFUNDS (Model B) ==================== */
+
+/** Queued refund for a bidder on an NFT listing (pull-based). */
+export async function readNftRefund(nftContract, tokenId, bidderAddress) {
+    const r = await readClient.readContract({
+        address: NFT_ESCROW_ADDRESS,
+        abi: NFT_ESCROW_ABI,
+        functionName: "refundOf",
+        args: [nftContract, BigInt(tokenId), bidderAddress],
+    });
+    return r;
+}
+
+/** Withdraw a queued refund from the NFT escrow (bidder signs, gas on them). */
+export async function withdrawNftRefundOnchain({ wallet, nftContract, tokenId }) {
+    const client = await walletClientFrom(wallet);
+    const hash = await client.writeContract({
+        address: NFT_ESCROW_ADDRESS,
+        abi: NFT_ESCROW_ABI,
+        functionName: "claimRefund",
+        args: [nftContract, BigInt(tokenId)],
+    });
+    const receipt = await waitReceipt(hash);
+    return { hash, receipt };
+}

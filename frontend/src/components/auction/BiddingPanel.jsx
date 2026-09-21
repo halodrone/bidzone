@@ -16,7 +16,7 @@ import {
     toExplorerTx,
     fromWei,
 } from "@/lib/bidzoneAuction";
-import { isNftAvailable, placeBidNftOnchain } from "@/lib/nft";
+import { isNftAvailable, placeBidNftOnchain, readNftRefund, withdrawNftRefundOnchain } from "@/lib/nft";
 import { MONAD } from "@/lib/monad";
 
 /**
@@ -113,8 +113,9 @@ export function BiddingPanel({ auction }) {
                 <RefundPanel
                     auctionUuid={auction.id}
                     walletAddress={walletAddress}
-                    onchainOn={isOnchainAvailable() && walletStatus === "ready"}
+                    onchainOn={(isOnchainAvailable() || isNftAvailable()) && walletStatus === "ready"}
                     privyWallet={privyWallet}
+                    nftToken={auction.auction_type === "NFT" ? nftTokenOf(auction) : null}
                 />
             )}
 
@@ -383,7 +384,7 @@ function BidForm({ auction, minNext, walletStatus }) {
                 open={addrModalOpen}
                 onClose={() => setAddrModalOpen(false)}
             />
-            <RefundPanel auctionUuid={auction.id} walletAddress={walletAddress} onchainOn={onchainOn && walletStatus === "ready"} privyWallet={privyWallet} />
+            <RefundPanel auctionUuid={auction.id} walletAddress={walletAddress} onchainOn={(onchainOn || isNftAvailable()) && walletStatus === "ready"} privyWallet={privyWallet} nftToken={auction.auction_type === "NFT" ? nftTokenOf(auction) : null} />
         </div>
     );
 }
@@ -393,7 +394,12 @@ function BidForm({ auction, minNext, walletStatus }) {
  * unclaimed refund in the BIDZONE contract for this auction. Nothing shown
  * on-chain when no refund is queued.
  */
-function RefundPanel({ auctionUuid, walletAddress, onchainOn, privyWallet }) {
+function nftTokenOf(auction) {
+    const t = Array.isArray(auction.nft_tokens) ? auction.nft_tokens[0] : auction.nft_tokens;
+    return t && t.token_id != null && t.nft_contract ? { nftContract: t.nft_contract, tokenId: t.token_id } : null;
+}
+
+function RefundPanel({ auctionUuid, walletAddress, onchainOn, privyWallet, nftToken = null }) {
     const [refund, setRefund] = useState(null);
     const [busy, setBusy] = useState(false);
     const [txHash, setTxHash] = useState(null);
@@ -406,7 +412,9 @@ function RefundPanel({ auctionUuid, walletAddress, onchainOn, privyWallet }) {
         }
         (async () => {
             try {
-                const r = await readRefund(auctionUuid, walletAddress);
+                const r = nftToken
+                    ? await readNftRefund(nftToken.nftContract, nftToken.tokenId, walletAddress)
+                    : await readRefund(auctionUuid, walletAddress);
                 if (!cancelled) setRefund(r);
             } catch {
                 if (!cancelled) setRefund(null);
@@ -415,14 +423,16 @@ function RefundPanel({ auctionUuid, walletAddress, onchainOn, privyWallet }) {
         return () => {
             cancelled = true;
         };
-    }, [auctionUuid, walletAddress, onchainOn, txHash]);
+    }, [auctionUuid, walletAddress, onchainOn, txHash, nftToken?.nftContract, nftToken?.tokenId]);
 
     if (!onchainOn || !refund || refund === 0n) return null;
 
     async function claim() {
         setBusy(true);
         try {
-            const { hash } = await withdrawRefundOnchain({ wallet: privyWallet, uuid: auctionUuid });
+            const { hash } = nftToken
+                ? await withdrawNftRefundOnchain({ wallet: privyWallet, nftContract: nftToken.nftContract, tokenId: nftToken.tokenId })
+                : await withdrawRefundOnchain({ wallet: privyWallet, uuid: auctionUuid });
             setTxHash(hash);
             toast.success("Refund withdrawn", { description: `${fromWei(refund)} MON returned to your wallet.` });
         } catch (e) {

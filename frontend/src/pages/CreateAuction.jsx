@@ -50,6 +50,7 @@ const CATEGORIES = [
 const CONDITIONS = ["NEW", "LIKE_NEW", "GOOD", "FAIR"];
 
 const DURATIONS = [
+    { label: "30 minutes", hours: 0.5 },
     { label: "6 hours", hours: 6 },
     { label: "24 hours", hours: 24 },
     { label: "3 days", hours: 72 },
@@ -144,6 +145,17 @@ function CreateForm() {
             setForm((f) => ({ ...f, auctionType: "NFT" }));
         }
     }, [auctionNftParam]);
+    // Model B: the asset carries itself in — prefill title/description from
+    // the token's own metadata once (never overwrites user edits).
+    useEffect(() => {
+        if (nftAsset && nftAsset.meta) {
+            setForm((f) => ({
+                ...f,
+                title: f.title || (nftAsset.meta.name || `Token #${nftAsset.tokenId}`),
+                description: f.description || nftAsset.meta.description || "",
+            }));
+        }
+    }, [nftAsset]);
 
     const [form, setForm] = useState(initialForm);
     const [media, setMedia] = useState([]);

@@ -33,8 +33,8 @@ import { MONAD } from "@/lib/monad";
 
 const TRACKING_ACTIVE = ["SHIPPED", "IN_TRANSIT", "OUT_FOR_DELIVERY"];
 
-export function MyActivity() {
-    const [tab, setTab] = useState("purchases");
+export function MyActivity({ initialTab = "purchases" } = {}) {
+    const [tab, setTab] = useState(initialTab);
 
     return (
         <section data-testid="activity-card" className="bz-card p-5 md:p-6">

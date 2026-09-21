@@ -31,6 +31,7 @@ function shortHash(h) {
 }
 
 export default function Profile() {
+
     const [searchParams] = useSearchParams();
     const { isAuthed, isLoading: authLoading, user, profile, signOut } = useAuth();
     const { status: walletStatus, address, balance, error: walletError } = useWallet();
