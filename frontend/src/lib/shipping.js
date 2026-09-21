@@ -319,7 +319,14 @@ export function markEscrowFunded(auctionId, session, transactionHash = null) {
     );
 }
 
-/** Seller updates manual tracking status (DELIVERED starts the 48h window). */
-export function updateTrackingStatus(auctionId, session, status) {
-    return backendCall(`auctions/${auctionId}/shipping/tracking`, { status }, session);
+/** Seller updates manual tracking status (DELIVERED starts the 48h window).
+ *  Phase 7.3b: direct party RPC — the RPC itself verifies the caller is the
+ *  shipment SELLER (migration 20260205000002). The old service-role backend
+ *  route stays available for when a service key is configured, but is no
+ *  longer on the critical path (it 503-honestly blocked the whole ladder). */
+export function updateTrackingStatus(auctionId, _session, status) {
+    return rpc("update_shipping_tracking", {
+        p_auction_id: auctionId,
+        p_new_status: status,
+    });
 }
