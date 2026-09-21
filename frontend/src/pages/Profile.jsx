@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Copy, Check, ExternalLink, Clock, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/home/Header";
@@ -31,6 +31,7 @@ function shortHash(h) {
 }
 
 export default function Profile() {
+    const [searchParams] = useSearchParams();
     const { isAuthed, isLoading: authLoading, user, profile, signOut } = useAuth();
     const { status: walletStatus, address, balance, error: walletError } = useWallet();
     const navigate = useNavigate();
@@ -323,7 +324,7 @@ export default function Profile() {
                 </section>
 
                 {/* Phase 7 — MY ACTIVITY: bids, purchases (fulfillment) and sales */}
-                <MyActivity />
+                <MyActivity initialTab={searchParams.get("tab") || "purchases"} />
             </main>
             <Footer />
         </div>

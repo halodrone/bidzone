@@ -1,10 +1,15 @@
-import { useState } from "react";
-import { Trophy, PackageOpen, Crown, Loader2, ExternalLink } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Trophy, PackageOpen, Crown, Loader2, ExternalLink, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuctionBids } from "@/hooks/useAuctionRoom";
 import { fmtAmount, shortAddr, timeAgo } from "@/components/auction/format";
 import { useWallet } from "@/context/WalletContext";
+import { useAuth } from "@/context/AuthContext";
 import { isOnchainAvailable, settleAuctionOnchain, toExplorerTx } from "@/lib/bidzoneAuction";
+import { isNftAvailable, settleNftAuctionOnchain, readEscrowStatus } from "@/lib/nft";
+import { recordNftEvent } from "@/lib/nftIndex";
+import { supabase } from "@/lib/supabase";
 import { MONAD } from "@/lib/monad";
 
 /**
@@ -98,10 +103,120 @@ export function EndedState({ auction }) {
                     <p className="mt-4 text-[11px] text-white/40">
                         Settlement pays 97.5% to the seller and 2.5% to the BIDZONE treasury.
                     </p>
-                    <SettleAction auction={auction} />
+                    {auction.auction_type === "NFT" ? <SettleNftAction auction={auction} /> : <SettleAction auction={auction} />}
                 </div>
             </div>
         </section>
+    );
+}
+
+/**
+ * Phase 7.2 FINAL (Model B) — NFT settlement via BidzoneNFTEscrow:
+ * NFT -> winner + 97.5% seller + 2.5% treasury, atomically + idempotently.
+ * Chain-aware visibility: once the on-chain status is Settled, the button is
+ * replaced by a settled chip (no double-settle attempts in the UI).
+ */
+function SettleNftAction({ auction }) {
+    const { privyWallet, status: walletStatus } = useWallet();
+    const { session } = useAuth();
+    const qc = useQueryClient();
+    const [busy, setBusy] = useState(false);
+    const [txHash, setTxHash] = useState(null);
+    const [onchainStatus, setOnchainStatus] = useState(null); // null unknown
+
+    const token = Array.isArray(auction.nft_tokens) ? auction.nft_tokens[0] : auction.nft_tokens;
+    const tokenId = token?.token_id;
+    const nftContract = token?.nft_contract;
+    const configured = isNftAvailable() && tokenId && nftContract;
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            if (!configured) return;
+            try {
+                const st = await readEscrowStatus(nftContract, tokenId);
+                if (!cancelled) setOnchainStatus(Number(st));
+            } catch {
+                if (!cancelled) setOnchainStatus(null);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [configured, nftContract, tokenId]);
+
+    if (!configured) return null;
+    if (onchainStatus === 3) {
+        return (
+            <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-[hsl(var(--bz-green))]" data-testid="nft-settled-chip">
+                <CheckCircle2 className="h-4 w-4" /> NFT settled — transferred to the winner on-chain.
+            </p>
+        );
+    }
+    if (onchainStatus === 4) {
+        return (
+            <p className="mt-4 text-xs text-white/50" data-testid="nft-cancelled-chip">
+                Listing was cancelled — the NFT was reclaimed by the seller.
+            </p>
+        );
+    }
+
+    async function settleNft() {
+        if (busy) return;
+        setBusy(true);
+        try {
+            const { hash, receipt } = await settleNftAuctionOnchain({
+                wallet: privyWallet,
+                nftContract,
+                tokenId,
+            });
+            setTxHash(hash);
+            if (receipt.status !== "success") throw new Error("Settlement reverted on-chain");
+            // Index the REAL settle tx (insert-own, best-effort).
+            try {
+                const found = await supabase.from("nft_tokens").select("id").eq("nft_contract", String(nftContract).toLowerCase()).eq("token_id", String(tokenId)).maybeSingle();
+                if (found?.data) {
+                    await recordNftEvent({ session, tokenRowId: found.data.id, eventType: "SETTLE", txHash: hash });
+                }
+            } catch { /* index best-effort */ }
+            setOnchainStatus(3);
+            qc.invalidateQueries({ queryKey: ["my-collection"] });
+            qc.invalidateQueries({ queryKey: ["auction", auction.id] });
+            toast.success("NFT auction settled on-chain", {
+                description: "The NFT moved to the winner; seller received 97.5%, treasury 2.5%.",
+            });
+        } catch (e) {
+            toast.error("Settlement failed", {
+                description: (e && (e.shortMessage || e.message)) || "See wallet response.",
+            });
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    return (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+                type="button"
+                data-testid="settle-nft-onchain"
+                disabled={busy || !privyWallet || walletStatus !== "ready"}
+                onClick={settleNft}
+                className="inline-flex items-center gap-2 rounded-full bz-btn-primary px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
+            >
+                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                Settle NFT on-chain
+            </button>
+            {txHash && (
+                <a
+                    href={`${MONAD.explorer.replace(/\/$/, "")}/tx/${txHash}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    data-testid="settle-nft-tx-link"
+                    className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white"
+                >
+                    <ExternalLink className="h-3 w-3" />
+                    View on {MONAD.networkName || MONAD.network}
+                </a>
+            )}
+        </div>
     );
 }
 

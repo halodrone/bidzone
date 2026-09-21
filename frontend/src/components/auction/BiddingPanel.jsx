@@ -186,10 +186,12 @@ function BidForm({ auction, minNext, walletStatus }) {
                 });
                 return;
             }
-            const tokenId = auction.nft_tokens?.[0]?.token_id || auction.nft_tokens?.token_id;
-            if (!tokenId) {
+            const nftToken = Array.isArray(auction.nft_tokens) ? auction.nft_tokens[0] : auction.nft_tokens;
+            const tokenId = nftToken?.token_id;
+            const nftContract = nftToken?.nft_contract;
+            if (!tokenId || !nftContract) {
                 toast.error("NFT not linked to this auction", {
-                    description: "This NFT auction has no mint record — it cannot accept bids.",
+                    description: "This NFT auction has no on-chain token record — it cannot accept bids.",
                 });
                 return;
             }
@@ -198,6 +200,7 @@ function BidForm({ auction, minNext, walletStatus }) {
                 setPhase("signing");
                 const { hash, receipt } = await placeBidNftOnchain({
                     wallet: privyWallet,
+                    nftContract,
                     tokenId,
                     bidMon: value,
                 });

@@ -292,6 +292,65 @@ def nft_metadata(auction_id: str):
     }
     return metadata
 
+# =============================================================================
+# GET /api/nft-metadata-proxy?url=... — CORS fallback for ARBITRARY ERC-721
+# tokenURI metadata (Model B). Some NFT metadata hosts send no CORS headers,
+# so the browser fetch fails; the acting user's UI falls back to this proxy.
+# SSRF guards: https-only, hostname allowlist shape, private/loopback/link-
+# literal IPs blocked, small size cap, short timeout. Read-only JSON fetch.
+# =============================================================================
+_BLOCKED_HOSTS = {
+    "localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback",
+    "metadata.google.internal", "169.254.169.254",
+}
+_IP_RE = __import__("re").compile(r"^\d{1,3}(\.\d{1,3}){3}$")
+
+
+def _host_allowed(host: str) -> bool:
+    h = (host or "").strip().lower().rstrip(".")
+    if not h or h in _BLOCKED_HOSTS:
+        return False
+    if h.endswith(".local") or h.endswith(".internal"):
+        return False
+    if _IP_RE.match(h):
+        parts = [int(p) for p in h.split(".")]
+        if parts[0] in (0, 10, 127) or parts[0] == 192 and parts[1] == 168 \
+                or parts[0] == 172 and 16 <= parts[1] <= 31 \
+                or parts[0] == 169 and parts[1] == 254:
+            return False
+    return True
+
+
+@api_router.get("/nft-metadata-proxy")
+def nft_metadata_proxy(url: str):
+    import urllib.parse as _up
+    parsed = _up.urlsplit(url or "")
+    if parsed.scheme not in ("https", "http") or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="INVALID_URL")
+    if not _host_allowed(parsed.hostname):
+        raise HTTPException(status_code=400, detail="HOST_NOT_ALLOWED")
+    try:
+        resp = requests.get(
+            url,
+            timeout=(5, 15),
+            headers={"User-Agent": "BIDZONE-NFT-Metadata/1.0", "Accept": "application/json"},
+        )
+        if resp.status_code >= 400:
+            raise HTTPException(status_code=502, detail="UPSTREAM_ERROR")
+        content = resp.content[: 2 * 1024 * 1024]
+        ctype = resp.headers.get("content-type", "application/json")
+        if "json" not in ctype and "+" not in ctype:
+            # Many gateways serve JSON as text/plain — accept it, reject HTML.
+            if "html" in ctype:
+                raise HTTPException(status_code=502, detail="NOT_JSON")
+        from fastapi.responses import Response as _Resp
+        return _Resp(content=content, media_type=ctype if "json" in ctype or "plain" in ctype else "application/json")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=502, detail="FETCH_FAILED")
+
+
 # Include the router in the main app
 app.include_router(api_router)
 

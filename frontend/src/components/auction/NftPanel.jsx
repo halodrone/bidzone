@@ -12,6 +12,9 @@ import { shortAddr, fmtAmount } from "@/components/auction/format";
  */
 export function NftPanel({ auction }) {
     const token = Array.isArray(auction.nft_tokens) ? auction.nft_tokens[0] : auction.nft_tokens;
+    // Model B: the token row carries ITS OWN nft_contract (any ERC-721) —
+    // the BIDZONE BidzoneNFT address is only the default/fallback.
+    const nftContract = token?.nft_contract || NFT_CONTRACT_ADDRESS;
     const [onchain, setOnchain] = useState(null);
 
     useEffect(() => {
@@ -20,8 +23,8 @@ export function NftPanel({ auction }) {
             if (!token) return;
             try {
                 const [owner, listing] = await Promise.all([
-                    readNftOwner(token.token_id),
-                    readNftListing(token.token_id),
+                    readNftOwner(nftContract, token.token_id),
+                    readNftListing(nftContract, token.token_id),
                 ]);
                 if (!cancelled) setOnchain({ owner, listing });
             } catch {
@@ -31,7 +34,7 @@ export function NftPanel({ auction }) {
         return () => {
             cancelled = true;
         };
-    }, [token]);
+    }, [token, nftContract]);
 
     if (!token) {
         return (
@@ -77,12 +80,12 @@ export function NftPanel({ auction }) {
                     <dt className="text-white/45">Contract</dt>
                     <dd className="font-mono text-white/85">
                         <a
-                            href={`${MONAD.explorer.replace(/\/$/, "")}/address/${NFT_CONTRACT_ADDRESS}`}
+                            href={`${MONAD.explorer.replace(/\/$/, "")}/address/${nftContract}`}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex items-center gap-1 hover:underline"
                         >
-                            {shortAddr(NFT_CONTRACT_ADDRESS)} <ExternalLink className="h-3 w-3" />
+                            {shortAddr(nftContract)} <ExternalLink className="h-3 w-3" />
                         </a>
                     </dd>
                 </div>
