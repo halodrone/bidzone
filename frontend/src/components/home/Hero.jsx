@@ -120,7 +120,7 @@ export function Hero() {
     );
 }
 
-function HeroVisual() {
+export function HeroVisual() {
     return (
         <div
             data-testid="hero-visual"

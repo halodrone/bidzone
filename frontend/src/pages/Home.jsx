@@ -11,17 +11,24 @@ export default function Home() {
     const location = useLocation();
 
     // Functional navigation: "Live Zone" / "Explore" / category cards link here
-    // with ?tab= / ?category= (and/or #live-auctions). Scroll the live listing
-    // into view once it has mounted so the destination is actually visible.
+    // with ?tab= / ?category= (and/or #live-auctions); the landing's
+    // "How It Works" link arrives via #how-it-works. Scroll the requested
+    // section into view once it has mounted so the destination is visible.
     useEffect(() => {
+        const params = new URLSearchParams(location.search);
         const hasTarget =
             location.hash === "#live-auctions" ||
-            new URLSearchParams(location.search).has("tab") ||
-            new URLSearchParams(location.search).has("category");
+            location.hash === "#how-it-works" ||
+            params.has("tab") ||
+            params.has("category");
         if (!hasTarget) return undefined;
+        const id =
+            location.hash === "#how-it-works"
+                ? "how-it-works"
+                : "live-auctions";
         const t = setTimeout(() => {
             document
-                .getElementById("live-auctions")
+                .getElementById(id)
                 ?.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 350);
         return () => clearTimeout(t);

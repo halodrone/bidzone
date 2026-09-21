@@ -346,3 +346,23 @@ select.bz-input option {
         gap: inherit;
     }
 }
+
+/* Phase Polish 1 — subtle, performance-friendly entrance for the landing hero */
+@keyframes bz-rise {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+.bz-rise {
+    animation: bz-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+    .bz-rise {
+        animation: none;
+    }
+}

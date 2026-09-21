@@ -1,9 +1,11 @@
-import { Sparkles, Github, Twitter } from "lucide-react";
+import { Sparkles, Github, Twitter, LogIn } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 const YEAR = new Date().getFullYear();
 
-export function Footer() {
+export function Footer({ variant = "app" }) {
+    const { openAuthModal } = useAuth();
     return (
         <footer
             data-testid="home-footer"
@@ -22,11 +24,28 @@ export function Footer() {
                     </div>
                 </Link>
 
-                <nav className="flex items-center gap-5 text-sm text-white/50">
-                    <Link to={{ pathname: "/", search: "?tab=live", hash: "#live-auctions" }} className="hover:text-white">Live Zone</Link>
-                    <Link to={{ pathname: "/", search: "?tab=all", hash: "#live-auctions" }} className="hover:text-white">Explore</Link>
-                    <Link to="/create" className="hover:text-white">Create</Link>
-                    <a href="#how-it-works" className="hover:text-white">How it Works</a>
+                <nav
+                    data-testid={variant === "landing" ? "landing-footer-nav" : "home-footer-nav"}
+                    className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/50"
+                >
+                    {variant === "landing" ? (
+                        <>
+                            <Link to={{ pathname: "/", search: "?tab=all", hash: "#live-auctions" }} className="hover:text-white">Explore</Link>
+                            <Link to={{ pathname: "/", hash: "#how-it-works" }} className="hover:text-white">How It Works</Link>
+                            <Link to={{ pathname: "/", hash: "#about" }} className="hover:text-white">About</Link>
+                            <button type="button" data-testid="footer-login" onClick={() => openAuthModal({ returnTo: "/" })} className="inline-flex items-center gap-1.5 hover:text-white">
+                                <LogIn className="h-3.5 w-3.5" /> Log In
+                            </button>
+                            <button type="button" data-testid="footer-get-started" onClick={() => openAuthModal({ returnTo: "/" })} className="font-medium text-white/80 hover:text-white">Get Started</button>
+                        </>
+                    ) : (
+                        <>
+                            <Link to={{ pathname: "/", search: "?tab=live", hash: "#live-auctions" }} className="hover:text-white">Live Zone</Link>
+                            <Link to={{ pathname: "/", search: "?tab=all", hash: "#live-auctions" }} className="hover:text-white">Explore</Link>
+                            <Link to="/create" className="hover:text-white">Create</Link>
+                            <a href="#how-it-works" className="hover:text-white">How it Works</a>
+                        </>
+                    )}
                 </nav>
 
                 <div className="flex items-center gap-2">
