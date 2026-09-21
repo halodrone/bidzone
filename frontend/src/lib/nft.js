@@ -16,6 +16,15 @@ export const NFT_ESCROW_ADDRESS =
 
 export const isNftAvailable = () => Boolean(NFT_CONTRACT_ADDRESS && NFT_ESCROW_ADDRESS);
 
+if (typeof window !== "undefined") {
+    window.__BIDZONE_DEBUG_NFT__ = {
+        NFT_CONTRACT_ADDRESS,
+        NFT_ESCROW_ADDRESS,
+        isNftAvailable: isNftAvailable(),
+    };
+}
+
+
 /** Stable tokenURI origin (production origin — env-driven, never hardcoded). */
 export const METADATA_BASE_URL =
     (typeof process !== "undefined" && process.env.REACT_APP_METADATA_BASE_URL) || "";
