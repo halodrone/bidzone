@@ -13,7 +13,7 @@ import { AddressModal } from "@/components/auction/AddressModal";
 import {
     useMyBids, useMyPurchases, useMySales, useMyAddresses,
     submitShippingAddress, recordShipment, confirmReceipt, openDispute,
-    markEscrowFunded, updateTrackingStatus, BackendUnavailableError,
+    updateTrackingStatus, BackendUnavailableError,
     trackingLabel, escrowLabel, statusTone, feeBreakdown,
 } from "@/lib/shipping";
 import { shortAddr } from "@/components/auction/format";
@@ -246,37 +246,20 @@ function EscrowStates({ purchase, refetch }) {
     return null;
 }
 
-function PendingPayment({ purchase, refetch }) {
-    const { session } = useAuth();
-    const [busy, setBusy] = useState(false);
-    async function secure() {
-        setBusy(true);
-        try {
-            await markEscrowFunded(purchase.auction_id, session, null);
-            toast.success("Payment secured — escrow active");
-            refetch();
-        } catch (e) {
-            if (e instanceof BackendUnavailableError) {
-                toast.error("Payment stamp unavailable", {
-                    description: "The backend service-role key is not configured yet (SERVICE_ROLE_NOT_CONFIGURED).",
-                });
-            } else {
-                toast.error("Could not secure payment", { description: e.message });
-            }
-        } finally {
-            setBusy(false);
-        }
-    }
+function PendingPayment({ purchase }) {
+    // Phase 7.3: the old "Payment secured" BUTTON called the service-role
+    // fund-stamp route, which is 503-honest (no service key) — a dead control
+    // that looked like a state. On-chain-bid auctions are stamped FUNDED at
+    // close (migration 20260205000001) and never reach this branch; what
+    // remains here is legacy application-level auctions, where "awaiting
+    // payment" is the honest state. Static note, no fake action.
     return (
         <div className="space-y-2" data-testid="purchase-pending-payment">
             <Step done text="You won this auction" />
             <Row2 icon={ShieldCheck} label="Awaiting payment confirmation" testid="purchase-awaiting-payment">
-                <button type="button" data-testid="purchase-secure-payment" onClick={secure}
-                    disabled={busy}
-                    className="inline-flex items-center gap-1.5 rounded-full bz-btn-primary px-4 py-1.5 text-[11px] font-semibold disabled:opacity-60">
-                    {busy && <Loader2 className="h-3 w-3 animate-spin" />}
-                    Payment secured
-                </button>
+                <span className="text-[11px] text-white/50">
+                    Payment is confirmed server-side for this (legacy, off-chain) auction.
+                </span>
             </Row2>
         </div>
     );
