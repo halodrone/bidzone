@@ -2,11 +2,12 @@
   "name": "bidzone-contracts",
   "version": "0.1.0",
   "private": true,
-  "description": "BIDZONE Phase 6.5 — Monad Testnet auction escrow smart contract",
+  "description": "BIDZONE Phase 6.5 \u2014 Monad Testnet auction escrow smart contract",
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
-    "deploy:monad": "hardhat run scripts/deploy.js --network monadTestnet"
+    "deploy:monad": "hardhat run scripts/deploy.js --network monadTestnet",
+    "deploy:nft": "hardhat run scripts/deployNFT.js --network monadTestnet"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",

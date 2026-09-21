@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import {
     Gavel, Package, Truck, MapPin, ShieldCheck, Clock, Loader2,
-    CheckCircle2, AlertTriangle, Send, X,
+    CheckCircle2, AlertTriangle, Send, X, ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -16,6 +17,9 @@ import {
     trackingLabel, escrowLabel, statusTone, feeBreakdown,
 } from "@/lib/shipping";
 import { shortAddr } from "@/components/auction/format";
+import { useWallet } from "@/context/WalletContext";
+import { readNftOwner, sendNftOnchain } from "@/lib/nft";
+import { MONAD } from "@/lib/monad";
 
 /**
  * BIDZONE Phase 7 — MY ACTIVITY (My Bids / My Purchases / My Sales).
@@ -51,6 +55,9 @@ export function MyActivity() {
                     <TabBtn testId="activity-tab-bids" active={tab === "bids"} onClick={() => setTab("bids")}>
                         <Clock className="h-3.5 w-3.5" /> Bids
                     </TabBtn>
+                    <TabBtn testId="activity-tab-collection" active={tab === "collection"} onClick={() => setTab("collection")}>
+                        <Package className="h-3.5 w-3.5" /> Collection
+                    </TabBtn>
                 </div>
             </header>
 
@@ -58,6 +65,7 @@ export function MyActivity() {
                 {tab === "purchases" && <Purchases />}
                 {tab === "sales" && <Sales />}
                 {tab === "bids" && <Bids />}
+                {tab === "collection" && <Collection />}
             </div>
         </section>
     );
@@ -810,4 +818,276 @@ function fmt(n) {
     } catch {
         return String(n);
     }
+}
+
+/* ============================ MY COLLECTION ========================== */
+/**
+ * Phase 7.2 — MY COLLECTION: real on-chain ownership.
+ * Rows come from the public nft_tokens mirror, but OWNERSHIP is re-read
+ * live from the chain (ownerOf) — a Supabase row is never treated as proof
+ * of ownership, and externally transferred NFTs show as "Transferred".
+ */
+function Collection() {
+    const { data: tokens, isLoading } = useMyCollectionTokens();
+    if (isLoading) return <Skeleton />;
+    if (!tokens.length)
+        return <Empty text="No NFTs yet — create an NFT auction or win one to build your collection." testId="collection-empty" />;
+
+    return (
+        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="collection-grid">
+            {tokens.map((t) => (
+                <CollectionCard key={t.id} token={t} />
+            ))}
+        </ul>
+    );
+}
+
+function useMyCollectionTokens() {
+    // Listed tokens (public metadata) + live on-chain ownership resolution.
+    const base = useQuery({
+        queryKey: ["my-collection-tokens"],
+        enabled: Boolean(supabase),
+        queryFn: async () => {
+            if (!supabase) return [];
+            try {
+                const { data, error } = await supabase
+                    .from("nft_tokens")
+                    .select(
+                        `id, auction_id, token_id, nft_contract, token_uri, name,
+                         description, collection_name, attributes, owner_wallet,
+                         mint_tx_hash, chain_id, created_at,
+                         auction:auctions ( id, title, status, current_bid,
+                            auction_items ( media_url, media_type, sort_order ) )`
+                    )
+                    .order("created_at", { ascending: false })
+                    .limit(100);
+                if (error) throw error;
+                return data ?? [];
+            } catch (e) {
+                // Phase 7.2 migration (nft_tokens) not applied yet — degrade
+                // to an honest empty state instead of an error loop.
+                if (/nft_tokens|does not exist|relation/i.test(e.message || "")) return [];
+                throw e;
+            }
+        },
+    });
+    const { data: ownership } = useOnchainOwnership(base.data || []);
+    return {
+        ...base,
+        data: (base.data || []).map((t) => ({
+            ...t,
+            onchain_owner: ownership ? ownership[t.token_id] ?? null : undefined,
+        })),
+    };
+}
+
+function useOnchainOwnership(tokens) {
+    return useQuery({
+        queryKey: ["nft-onchain-ownership", tokens.map((t) => t.token_id).join(",")],
+        enabled: tokens.length > 0,
+        staleTime: 10_000,
+        queryFn: async () => {
+            const map = {};
+            for (const t of tokens) {
+                try {
+                    map[t.token_id] = (await readNftOwner(t.token_id)) || null;
+                } catch {
+                    map[t.token_id] = null;
+                }
+            }
+            return map;
+        },
+    });
+}
+
+function CollectionCard({ token }) {
+    const { user, session, profile } = useAuth();
+    const [open, setOpen] = useState(false);
+    const owner = token.onchain_owner; // undefined = loading, null = unavailable
+    const mine =
+        owner && profile?.wallet_address
+            ? String(owner).toLowerCase() === String(profile.wallet_address).toLowerCase()
+            : false;
+    const loading = token.onchain_owner === undefined;
+
+    const [acq, setAcq] = useState(null);
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data } = await supabase
+                    .from("nft_events")
+                    .select("event_type,tx_hash,created_at,to_wallet")
+                    .eq("token_row_id", token.id)
+                    .order("created_at", { ascending: false });
+                if (!cancelled && data) {
+                    const settled = data.find((e) => e.event_type === "SETTLE");
+                    const mint = data.find((e) => e.event_type === "MINT");
+                    setAcq(settled || mint || data[0] || null);
+                }
+            } catch {
+                /* honest empty */
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [token.id]);
+
+    return (
+        <li className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4" data-testid="collection-card">
+            <div className="flex items-center gap-3">
+                <Thumb auction={token.auction} />
+                <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-white">{token.name}</p>
+                    <p className="text-[11px] text-white/45 truncate">
+                        {token.collection_name || "BIDZONE NFT"} · #{token.token_id}
+                    </p>
+                </div>
+                <span
+                    data-testid={`collection-ownership-${token.token_id}`}
+                    className={`inline-flex shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+                        loading
+                            ? "border-white/10 bg-white/[0.03] text-white/50"
+                            : mine
+                            ? "border-[hsl(var(--bz-green)/0.5)] bg-[hsl(var(--bz-green)/0.12)] text-white"
+                            : "border-white/15 bg-white/[0.04] text-white/60"
+                    }`}
+                >
+                    {loading ? "checking…" : mine ? "Owned" : "Transferred"}
+                </span>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2 text-[11px] text-white/50">
+                <span>
+                    {token.auction ? (
+                        <Link to={`/auction/${token.auction_id}`} className="underline hover:text-white">
+                            from auction
+                        </Link>
+                    ) : (
+                        "minted on BIDZONE"
+                    )}
+                    {acq ? ` · ${new Date(acq.created_at).toLocaleDateString()}` : ""}
+                </span>
+                {mine && (
+                    <button type="button" data-testid="collection-open-detail" onClick={() => setOpen(true)}
+                        className="bz-btn-secondary rounded-full px-3 py-1 font-semibold">
+                        Detail / Send
+                    </button>
+                )}
+                {acq?.tx_hash && (
+                    <a href={`${MONAD.explorer.replace(/\/$/, "")}/tx/${acq.tx_hash}`} target="_blank" rel="noreferrer"
+                        className="inline-flex items-center gap-1 hover:text-white">
+                        tx <ExternalLink className="h-3 w-3" />
+                    </a>
+                )}
+            </div>
+            <SendNftModal open={open} onClose={() => setOpen(false)} token={token} walletAddress={profile?.wallet_address} session={session} />
+        </li>
+    );
+}
+
+function SendNftModal({ open, onClose, token, walletAddress, session }) {
+    const [to, setTo] = useState("");
+    const [confirming, setConfirming] = useState(false);
+    const [state, setState] = useState("idle"); // idle | pending | success | failed
+    const [txHash, setTxHash] = useState(null);
+    const { wallet } = useWallet();
+    const qc = useQueryClient();
+
+    if (!open) return null;
+    const valid = /^0x[a-fA-F0-9]{40}$/.test(to.trim());
+
+    async function send() {
+        if (!valid || state === "pending") return;
+        setConfirming(false);
+        setState("pending");
+        try {
+            const res = await sendNftOnchain({ wallet, tokenId: token.token_id, toAddress: to.trim() });
+            setTxHash(res.hash);
+            // append-only ownership event (the acting user records THEIR tx)
+            await supabase.from("nft_events").insert({
+                token_row_id: token.id,
+                event_type: "TRANSFER",
+                actor_id: session?.user?.id,
+                tx_hash: res.hash,
+                to_wallet: to.trim(),
+            });
+            setState("success");
+            qc.invalidateQueries({ queryKey: ["my-collection-tokens"] });
+            toast.success("NFT sent");
+        } catch (e) {
+            setState("failed");
+            toast.error("Send failed", { description: (e && (e.shortMessage || e.message)) || "Try again." });
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center px-4" data-testid="send-nft-modal" role="dialog" aria-modal="true">
+            <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+            <div className="relative w-full max-w-md rounded-3xl bz-card p-6">
+                <button type="button" onClick={onClose} aria-label="Close" className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 text-white/60 hover:text-white">
+                    <X className="h-4 w-4" />
+                </button>
+                <h3 className="font-display text-lg font-bold text-white">Send NFT</h3>
+                <p className="mt-1 text-xs text-white/50">
+                    {token.name} · #{token.token_id} — signed by your embedded wallet (you pay gas).
+                </p>
+                <label className="mt-5 block">
+                    <span className="mb-1.5 block text-[11px] uppercase tracking-widest text-white/50">Destination wallet</span>
+                    <input
+                        className="bz-input w-full font-mono"
+                        data-testid="send-nft-address"
+                        value={to}
+                        onChange={(e) => setTo(e.target.value)}
+                        placeholder="0x…"
+                        disabled={state === "pending"}
+                    />
+                </label>
+                {state === "idle" && !confirming && (
+                    <button type="button" data-testid="send-nft-continue" disabled={!valid} onClick={() => setConfirming(true)}
+                        className="mt-4 inline-flex w-full items-center justify-center rounded-full bz-btn-primary px-5 py-3 text-sm font-semibold disabled:opacity-50">
+                        Continue
+                    </button>
+                )}
+                {state === "idle" && confirming && (
+                    <div className="mt-4 rounded-xl border border-white/[0.08] bg-black/25 p-3 text-xs text-white/70" data-testid="send-nft-confirm-box">
+                        <p>
+                            Send <span className="text-white">#{token.token_id}</span> to{" "}
+                            <span className="font-mono text-white">{shortAddr(to.trim())}</span>? This cannot be undone.
+                        </p>
+                        <div className="mt-2 flex gap-2">
+                            <button type="button" data-testid="send-nft-confirm" onClick={send}
+                                className="rounded-full bz-btn-primary px-4 py-1.5 text-[11px] font-semibold">
+                                Confirm & Sign
+                            </button>
+                            <button type="button" onClick={() => setConfirming(false)}
+                                className="rounded-full bz-btn-secondary px-4 py-1.5 text-[11px] font-semibold">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
+                {state === "pending" && (
+                    <p className="mt-4 flex items-center gap-2 text-xs text-white/70" data-testid="send-nft-pending">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Waiting for network confirmation…
+                    </p>
+                )}
+                {state === "success" && (
+                    <div className="mt-4 rounded-xl border border-[hsl(var(--bz-green)/0.4)] bg-[hsl(var(--bz-green)/0.08)] p-3 text-xs text-white/80" data-testid="send-nft-success">
+                        Sent — ownership updated on-chain.
+                        {txHash && (
+                            <a className="ml-2 underline" href={`${MONAD.explorer.replace(/\/$/, "")}/tx/${txHash}`} target="_blank" rel="noreferrer">
+                                View tx
+                            </a>
+                        )}
+                    </div>
+                )}
+                {state === "failed" && (
+                    <p className="mt-4 rounded-xl border border-[hsl(var(--bz-red)/0.4)] bg-[hsl(var(--bz-red)/0.08)] p-3 text-xs text-white/80" data-testid="send-nft-failed">
+                        The transaction failed — nothing was sent. Please try again.
+                    </p>
+                )}
+            </div>
+        </div>
+    );
 }

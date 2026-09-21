@@ -178,6 +178,57 @@ function BidForm({ auction, minNext, walletStatus }) {
         }
 
         // On-chain path: contract configured AND wallet ready.
+        if (auction.auction_type === "NFT" && isNftAvailable()) {
+            if (!canOnchain) {
+                toast.error("Embedded wallet not ready", {
+                    description: "Open Wallet and make sure your embedded wallet is ready to sign.",
+                });
+                return;
+            }
+            const tokenId = auction.nft_tokens?.[0]?.token_id || auction.nft_tokens?.token_id;
+            if (!tokenId) {
+                toast.error("NFT not linked to this auction", {
+                    description: "This NFT auction has no mint record — it cannot accept bids.",
+                });
+                return;
+            }
+            let txHash = null;
+            try {
+                setPhase("signing");
+                const { hash, receipt } = await placeBidNftOnchain({
+                    wallet: privyWallet,
+                    tokenId,
+                    bidMon: value,
+                });
+                txHash = hash;
+                setLastTxHash(hash);
+                if (receipt.status !== "success") throw new Error("Transaction failed on-chain");
+                setPhase("pending");
+                await submitBid({
+                    auctionId: auction.id,
+                    bidderId: session.user.id,
+                    amount: value,
+                    walletAddress: walletAddress || (profile ? profile.wallet_address : null),
+                    transactionHash: hash,
+                });
+                setPhase("confirmed");
+                toast.success(`On-chain bid confirmed — ${fmtAmount(value)} MON`, {
+                    description: "NFT escrowed by BidzoneNFTEscrow until settlement.",
+                });
+                setAmount("");
+                refreshBalance();
+                qc.invalidateQueries({ queryKey: ["auction", auction.id] });
+                qc.invalidateQueries({ queryKey: ["auction-bids", auction.id] });
+            } catch (e) {
+                setPhase("idle");
+                const msg = (e && (e.shortMessage || e.message)) || "Bid failed";
+                toast.error("Bid rejected", {
+                    description: txHash ? "On-chain call reverted or DB write failed." : msg,
+                });
+            }
+            return;
+        }
+
         if (canOnchain) {
             let txHash = null;
             try {

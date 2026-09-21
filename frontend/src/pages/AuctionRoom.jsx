@@ -14,6 +14,7 @@ import { PriceChart } from "@/components/auction/PriceChart";
 import { ActivityFeed } from "@/components/auction/ActivityFeed";
 import { CommentsPanel } from "@/components/auction/CommentsPanel";
 import { ReactionsBar } from "@/components/auction/ReactionsBar";
+import { NftPanel } from "@/components/auction/NftPanel";
 import { NotFound } from "@/components/auction/NotFound";
 import { EndedState } from "@/components/auction/EndedState";
 import {
@@ -66,6 +67,7 @@ export default function AuctionRoom() {
                             {/* Bidding + item info  (left on desktop) */}
                             <div className="order-2 flex flex-col gap-6 lg:order-1 lg:col-span-3">
                                 <BiddingPanel auction={auction} />
+                                {auction.auction_type === "NFT" && <NftPanel auction={auction} />}
                                 <AuctionInfo auction={auction} />
                             </div>
 

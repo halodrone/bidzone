@@ -211,6 +211,87 @@ def update_tracking(auction_id: str, body: TrackingRequest,
     })
     return {"result": result}
 
+
+# =============================================================================
+# BIDZONE Phase 7.2 — NFT metadata gateway (stable tokenURI target).
+#
+# The on-chain tokenURI points HERE (stable production origin), NOT at a
+# signed/expiring Supabase URL. The metadata JSON is assembled from the
+# public nft_tokens row; the image link is a FRESH signed URL generated per
+# request (image links may rotate; the metadata itself stays stable).
+# Public route — metadata is public by design (RLS: nft_tokens_select_public).
+# =============================================================================
+METADATA_BASE_URL = os.environ.get("METADATA_BASE_URL", "")
+UUID_RE = __import__("re").compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+
+@api_router.get("/nft-metadata/{auction_id}")
+def nft_metadata(auction_id: str):
+    if not (SUPABASE_URL and SUPABASE_ANON_KEY):
+        raise HTTPException(status_code=503, detail="SUPABASE_NOT_CONFIGURED")
+    if not UUID_RE.match(auction_id or ""):
+        raise HTTPException(status_code=404, detail="TOKEN_NOT_FOUND")
+    headers = {"apikey": SUPABASE_ANON_KEY, "Authorization": f"Bearer {SUPABASE_ANON_KEY}"}
+    rows = requests.get(
+        f"{SUPABASE_URL}/rest/v1/nft_tokens",
+        headers=headers,
+        params={
+            "auction_id": f"eq.{auction_id}",
+            "select": "name,description,collection_name,attributes,nft_contract,token_id,chain_id",
+            "limit": "1",
+        },
+        timeout=15,
+    ).json()
+    if not isinstance(rows, list) or not rows:
+        raise HTTPException(status_code=404, detail="TOKEN_NOT_FOUND")
+    t = rows[0]
+
+    # Fresh signed image URL from the existing private media bucket.
+    image = None
+    items = requests.get(
+        f"{SUPABASE_URL}/rest/v1/auction_items",
+        headers=headers,
+        params={
+            "auction_id": f"eq.{auction_id}",
+            "select": "media_url,media_type,sort_order",
+            "order": "sort_order.asc",
+            "limit": "5",
+        },
+        timeout=15,
+    ).json()
+    image_items = [i for i in items if i.get("media_type") == "IMAGE"]
+    if image_items:
+        path = image_items[0]["media_url"].lstrip("/")
+        sign = requests.post(
+            f"{SUPABASE_URL}/storage/v1/object/sign/auction-media",
+            headers=headers,
+            json={"paths": [path], "expiresIn": 3600},
+            timeout=15,
+        ).json()
+        if isinstance(sign, list) and sign and sign[0].get("signedURL"):
+            image = f"{SUPABASE_URL}/storage/v1{sign[0]['signedURL']}"
+        elif isinstance(sign, dict) and sign.get("signedURL"):
+            image = f"{SUPABASE_URL}/storage/v1{sign['signedURL']}"
+
+    attrs = t.get("attributes") or []
+    metadata = {
+        "name": t.get("name"),
+        "description": t.get("description"),
+        "image": image,
+        "external_url": (METADATA_BASE_URL.rstrip("/") + f"/auction/{auction_id}") if METADATA_BASE_URL else None,
+        "attributes": attrs if isinstance(attrs, list) else [],
+        "collection": {"name": t.get("collection_name") or "BIDZONE NFT"},
+        "bidzone": {
+            "nft_contract": t.get("nft_contract"),
+            "token_id": str(t.get("token_id")),
+            "chain_id": str(t.get("chain_id")),
+            "auction_id": auction_id,
+        },
+    }
+    return metadata
+
 # Include the router in the main app
 app.include_router(api_router)
 

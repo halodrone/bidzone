@@ -2,6 +2,16 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Loader2, LogIn, FileText, Truck } from "lucide-react";
+import { MONAD } from "@/lib/monad";
+import {
+    mintNft,
+    approveNftForEscrow,
+    registerNftAuctionOnchain,
+    NFT_CONTRACT_ADDRESS,
+    NFT_ESCROW_ADDRESS,
+    isNftAvailable,
+    METADATA_BASE_URL,
+} from "@/lib/nft";
 import { toast } from "sonner";
 import { Header } from "@/components/home/Header";
 import { Footer } from "@/components/home/Footer";
@@ -52,6 +62,8 @@ const initialForm = {
     antiSniping: "10",
     shippingOrigin: "",
     allowedRegions: ["GLOBAL"],
+    nftCollection: "",
+    nftAttributes: "",
 };
 
 // Phase 7 — destination options for PHYSICAL auctions (public, transparent).
@@ -64,6 +76,7 @@ const REGION_OPTIONS = [
     { value: "NA", label: "North America" },
     { value: "OCE", label: "Oceania" },
 ];
+
 
 /**
  * BIDZONE Phase 6.1 — Create Auction with media.
@@ -117,6 +130,19 @@ function CreateForm() {
             return setError("Starting bid must be a number ≥ 0");
         if (!form.minimumIncrement || isNaN(Number(form.minimumIncrement)) || Number(form.minimumIncrement) <= 0)
             return setError("Minimum increment must be a number > 0");
+        // Phase 7.2 — NFT auctions: mint + approve + escrow happen at publish.
+        if (form.auctionType === "NFT") {
+            if (!form.nftCollection.trim())
+                return setError("Collection name is required for NFT auctions");
+            if (mode === "draft")
+                return setError("NFT auctions publish immediately (mint + on-chain escrow) — draft is not available for NFTs.");
+            if (!isNftAvailable())
+                return setError("NFT contracts are not configured yet — deploy BidzoneNFT + BidzoneNFTEscrow first.");
+            if (!walletStatus || walletStatus !== "ready" || !privyWallet)
+                return setError("Your embedded wallet must be ready to mint and sign.");
+            if (media.filter((m) => m.mediaType === "IMAGE").length === 0)
+                return setError("At least one product image is required for NFT auctions");
+        }
         // Phase 7 — PHYSICAL auctions ship in the real world: origin and at
         // least one destination are required (no hidden terms — BIDZONE stays
         // fully transparent; the 72h shipping deadline is fixed by the
@@ -214,6 +240,79 @@ function CreateForm() {
                 }
             }
 
+            // 3b) Phase 7.2 — NFT: mint -> record -> approve -> escrow-register.
+            // All four steps are USER-signed (embedded wallet, user pays gas);
+            // the auction only becomes LIVE if every step succeeded — an
+            // auction can never claim to contain an un-minted NFT.
+            if (form.auctionType === "NFT") {
+                setPhase("minting");
+                const tokenUri = `${(METADATA_BASE_URL || window.location.origin).replace(/\/$/, "")}/api/nft-metadata/${auctionId}`;
+                const minted = await mintNft({ wallet: privyWallet, tokenUri });
+
+                const attributes = form.nftAttributes
+                    .split(",")
+                    .map((pair) => pair.trim())
+                    .filter(Boolean)
+                    .map((pair) => {
+                        const [trait, ...rest] = pair.split(":");
+                        return { trait_type: trait.trim(), value: rest.join(":").trim() };
+                    })
+                    .filter((a) => a.trait_type && a.value);
+
+                const { data: tokenRow, error: tErr } = await supabase
+                    .from("nft_tokens")
+                    .insert({
+                        auction_id: auctionId,
+                        creator_id: user.id,
+                        nft_contract: NFT_CONTRACT_ADDRESS,
+                        token_id: minted.tokenId,
+                        token_uri: tokenUri,
+                        name: form.title.trim(),
+                        description: form.description.trim() || null,
+                        collection_name: form.nftCollection.trim(),
+                        attributes,
+                        owner_wallet: privyWallet.address,
+                        mint_tx_hash: minted.hash,
+                        chain_id: MONAD.chainId,
+                    })
+                    .select("id")
+                    .single();
+                if (tErr) {
+                    // Honest failure — the NFT IS minted; the row can be re-linked
+                    // later. Surface the error instead of pretending success.
+                    throw new Error(`NFT minted (${minted.tokenId}) but the record failed: ${tErr.message}`);
+                }
+                await supabase.from("nft_events").insert({
+                    token_row_id: tokenRow.id,
+                    event_type: "MINT",
+                    actor_id: user.id,
+                    tx_hash: minted.hash,
+                    to_wallet: privyWallet.address,
+                });
+
+                setPhase("approving");
+                const approved = await approveNftForEscrow({ wallet: privyWallet, tokenId: minted.tokenId });
+
+                setPhase("escrowing");
+                const registered = await registerNftAuctionOnchain({
+                    wallet: privyWallet,
+                    tokenId: minted.tokenId,
+                    startingBidMon: form.startingBid,
+                    minimumIncrementMon: form.minimumIncrement,
+                    endTime: end.toISOString(),
+                });
+                await supabase.from("nft_events").insert({
+                    token_row_id: tokenRow.id,
+                    event_type: "ESCROW",
+                    actor_id: user.id,
+                    tx_hash: registered.hash,
+                    to_wallet: NFT_ESCROW_ADDRESS,
+                });
+                toast.success("NFT minted + escrowed on Monad Testnet", {
+                    description: `Token #${minted.tokenId} is now held by the escrow contract.`,
+                });
+            }
+
             // 4) Publish: DRAFT -> LIVE. ("draft" mode keeps the row as a
             // DRAFT — publishable later from the Auction Room owner bar.)
             if (mode === "draft") {
@@ -309,7 +408,7 @@ function CreateForm() {
         );
     }
 
-    const busy = phase === "creating" || phase === "uploading" || phase === "saving" || phase === "onchain";
+    const busy = phase === "creating" || phase === "uploading" || phase === "saving" || phase === "onchain" || phase === "minting" || phase === "approving" || phase === "escrowing";
 
     return (
         <form onSubmit={submit} className="space-y-6">
@@ -359,6 +458,8 @@ function CreateForm() {
                     <Field label="Type">
                         <select className="bz-input w-full" data-testid="create-type" value={form.auctionType} onChange={set("auctionType")}>
                             <option value="PHYSICAL">Physical</option>
+                            <option value="NFT">NFT (on-chain)</option>
+                            <option value="DIGITAL_NON_NFT" disabled>Digital (non-NFT) — Coming Soon</option>
                             <option value="DIGITAL">Digital</option>
                         </select>
                     </Field>
@@ -404,6 +505,38 @@ function CreateForm() {
                         />
                     </Field>
                 </div>
+
+                {form.auctionType === "NFT" && (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <Field label="Collection name">
+                            <input
+                                className="bz-input w-full"
+                                data-testid="create-nft-collection"
+                                value={form.nftCollection}
+                                onChange={set("nftCollection")}
+                                maxLength={60}
+                                placeholder="e.g. Bidzone Founders"
+                            />
+                        </Field>
+                        <Field label="Traits (optional)">
+                            <input
+                                className="bz-input w-full"
+                                data-testid="create-nft-attributes"
+                                value={form.nftAttributes}
+                                onChange={set("nftAttributes")}
+                                maxLength={200}
+                                placeholder="Color: Purple, Rarity: Rare"
+                            />
+                        </Field>
+                        <p className="text-[11px] leading-relaxed text-white/50 sm:col-span-2" data-testid="nft-flow-note">
+                            Publishing mints a real ERC-721 to your embedded wallet
+                            (you pay gas), then escrows it on-chain in
+                            BidzoneNFTEscrow. Token metadata is served from a
+                            stable BIDZONE gateway URL. NFT auctions publish
+                            immediately — drafts are not available.
+                        </p>
+                    </div>
+                )}
 
                 {form.auctionType === "PHYSICAL" && (
                     <>
@@ -503,6 +636,9 @@ function CreateForm() {
                     {phase === "creating" && "Creating auction…"}
                     {phase === "uploading" && "Uploading media…"}
                     {phase === "saving" && "Saving media…"}
+                    {phase === "minting" && "Minting NFT…"}
+                    {phase === "approving" && "Approving escrow…"}
+                    {phase === "escrowing" && "Escrowing NFT…"}
                     {phase === "onchain" && "Listing on-chain…"}
                     {phase === "done" && "Published"}
                 </button>
