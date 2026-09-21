@@ -28,7 +28,7 @@ export async function ensureNftTokenRow({ session, nftContract, tokenId, tokenUr
         .insert({
             creator_id: session.user.id,
             nft_contract: contract,
-            token_id: String(tokenId),
+            token_id: Number(tokenId),
             token_uri: tokenUri || "",
             name: (name || `Token #${tokenId}`).slice(0, 120),
             description: description || null,
@@ -63,7 +63,7 @@ export async function linkNftAuction({ session, auctionId, nftContract, tokenId 
         auction_id: auctionId,
         creator_id: session.user.id,
         nft_contract: String(nftContract || "").toLowerCase(),
-        token_id: String(tokenId),
+        token_id: Number(tokenId),
         chain_id: MONAD.chainId,
     });
     if (error && !/duplicate key|23505|unique/i.test(error.message || "")) throw error;

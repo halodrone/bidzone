@@ -27,6 +27,7 @@ export function useAuction(auctionId) {
                     start_time, end_time, anti_sniping_seconds, closed_at,
                     allowed_regions, shipping_origin,
                     nft_tokens ( id, name, collection_name, token_id, nft_contract, token_uri, attributes, mint_tx_hash ),
+                    nft_auctions ( nft_contract, token_id ),
                     contract_auction_id, chain_id, contract_address, creation_tx_hash,
                     seller:profiles!auctions_seller_id_fkey (
                         id, username, display_name, avatar_url, reputation_score, wallet_address
@@ -38,9 +39,27 @@ export function useAuction(auctionId) {
                 .maybeSingle();
             if (error) throw error;
             if (!data) throw new Error("NOT_FOUND");
+            // Phase 7.2 FINAL (Model B): NFT auctions link their token via the
+            // append-only nft_auctions link table (nft_tokens.auction_id is
+            // write-once). Resolve link -> token row and attach it in the same
+            // nft_tokens shape every consumer already reads.
+            let nftTokens = data.nft_tokens || [];
+            const link = Array.isArray(data.nft_auctions) ? data.nft_auctions[0] : data.nft_auctions;
+            if (data.auction_type === "NFT" && nftTokens.length === 0 && link?.nft_contract && link?.token_id != null) {
+                try {
+                    const { data: tokenRow } = await supabase
+                        .from("nft_tokens")
+                        .select("id, name, collection_name, token_id, nft_contract, token_uri, attributes, mint_tx_hash")
+                        .eq("nft_contract", String(link.nft_contract).toLowerCase())
+                        .eq("token_id", String(link.token_id))
+                        .maybeSingle();
+                    if (tokenRow) nftTokens = [tokenRow];
+                } catch { /* token row optional — panel degrades honestly */ }
+            }
             // Phase 6.1: resolve private-bucket storage paths to signed URLs
             return {
                 ...data,
+                nft_tokens: nftTokens,
                 auction_items: await resolveMediaUrls(data.auction_items),
             };
         },

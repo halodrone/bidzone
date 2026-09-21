@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, custom, http, parseEther, getContract } from "viem";
+import { createPublicClient, createWalletClient, custom, http, parseEther, getContract, decodeEventLog } from "viem";
 import { monadChain, MONAD } from "@/lib/monad";
 import NFT_ABI from "@/lib/contracts/BidzoneNFT.abi.json";
 import NFT_ESCROW_ABI from "@/lib/contracts/BidzoneNFTEscrow.abi.json";
@@ -263,30 +263,79 @@ export async function fetchNftMetadata(nftContract, tokenId) {
 }
 
 /**
- * On-chain discovery: Transfer logs TO a wallet on known collections.
- * Used to find tokens the wallet owns that are missing from the index.
+ * On-chain discovery for the wallet-owned collection.
+ * Monad testnet public RPC limits eth_getLogs to a 100-block range — so the
+ * primary path for BidzoneNFT is a sequential ownerOf sweep (tokenIds start
+ * at 1 and mints are sequential); Transfer-log scans use small chunks as a
+ * best-effort fallback for OTHER collections (the nft_tokens index remains
+ * the durable source for imported assets).
  */
-export async function discoverOwnedTransfers({ ownerWallet, nftContracts = [], maxLookBlocks = 500_000 }) {
+export async function discoverOwnedTransfers({ ownerWallet, nftContracts = [] }) {
     const out = [];
+    const seen = new Set();
     const contracts = nftContracts.filter(Boolean);
     if (!ownerWallet || contracts.length === 0) return out;
+    const mine = String(ownerWallet).toLowerCase();
+
+    async function readOwnerRetry(c, tokenId, attempts = 3) {
+        let lastErr;
+        for (let i = 0; i < attempts; i++) {
+            try {
+                return await readNftOwner(c, tokenId);
+            } catch (e) {
+                lastErr = e;
+                await new Promise((r) => setTimeout(r, 1200 * (i + 1)));
+            }
+        }
+        throw lastErr;
+    }
+
+    async function addIfOwned(c, tokenId) {
+        const key = `${String(c).toLowerCase()}:${tokenId}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        try {
+            const owner = await readOwnerRetry(c, tokenId);
+            if (String(owner).toLowerCase() === mine) out.push({ nftContract: String(c).toLowerCase(), tokenId: String(tokenId) });
+        } catch { /* token burned/unreadable — skip */ }
+    }
+
     for (const c of contracts) {
+        const cl = String(c).toLowerCase();
+        // 1) Sequential sweep for BidzoneNFT (nextTokenId + ownerOf).
+        if (NFT_CONTRACT_ADDRESS && cl === NFT_CONTRACT_ADDRESS.toLowerCase()) {
+            try {
+                const next = await readClient.readContract({ address: c, abi: NFT_ABI, functionName: "nextTokenId" });
+                const n = Number(next);
+                // +2 beyond nextTokenId: the public RPC can serve a node that
+                // lags behind the very tx that minted the newest token —
+                // the ownerOf retries ride over that window.
+                const cap = Math.min(n + 1, 400); // sanity cap
+                const ids = Array.from({ length: cap }, (_, i) => i + 1);
+                for (let i = 0; i < ids.length; i += 20) {
+                    await Promise.all(ids.slice(i, i + 20).map((id) => addIfOwned(c, id)));
+                }
+            } catch { /* fall through to logs */ }
+        }
+        // 2) Best-effort chunked Transfer logs (100-block RPC limit).
         try {
             const latest = await readClient.getBlockNumber();
-            const fromBlock = latest > BigInt(maxLookBlocks) ? latest - BigInt(maxLookBlocks) : 0n;
-            const logs = await readClient.getLogs({
-                address: c,
-                event: ERC721_ABI.find((e) => e.type === "event" && e.name === "Transfer"),
-                args: { to: ownerWallet },
-                fromBlock,
-                toBlock: "latest",
-            });
-            for (const log of logs) {
-                out.push({ nftContract: c, tokenId: log.args.tokenId.toString() });
+            const span = 5_000n;
+            const from = latest > span ? latest - span : 0n;
+            for (let start = from; start <= latest; start += 100n) {
+                const end = start + 99n > latest ? latest : start + 99n;
+                try {
+                    const logs = await readClient.getLogs({
+                        address: c,
+                        event: ERC721_ABI.find((e) => e.type === "event" && e.name === "Transfer"),
+                        args: { to: ownerWallet },
+                        fromBlock: start,
+                        toBlock: end,
+                    });
+                    for (const log of logs) await addIfOwned(c, log.args.tokenId.toString());
+                } catch { /* chunk failed — keep going */ }
             }
-        } catch {
-            /* RPC range limits — index discovery still covers these */
-        }
+        } catch { /* block number unavailable — index still covers */ }
     }
     return out;
 }
@@ -309,13 +358,26 @@ export async function mintNft({ wallet, tokenUri }) {
     let tokenId = null;
     for (const log of receipt.logs) {
         try {
-            const decoded = readClient.decodeEventLog({ abi: NFT_ABI, data: log.data, topics: log.topics });
+            const decoded = decodeEventLog({ abi: NFT_ABI, data: log.data, topics: log.topics });
             if (decoded.eventName === "Minted") {
                 tokenId = decoded.args.tokenId.toString();
                 break;
             }
+            // Fallback: the ERC-721 Transfer(0x0 -> minter) event.
+            if (decoded.eventName === "Transfer" && String(decoded.args.from).toLowerCase() === "0x0000000000000000000000000000000000000000") {
+                tokenId = decoded.args.tokenId.toString();
+            }
         } catch {
             /* not our event */
+        }
+    }
+    if (tokenId == null) {
+        // Last resort: sequential mints -> newest token is nextTokenId - 1.
+        try {
+            const next = await readClient.readContract({ address: NFT_CONTRACT_ADDRESS, abi: NFT_ABI, functionName: "nextTokenId" });
+            tokenId = (Number(next) - 1).toString();
+        } catch {
+            /* leave null */
         }
     }
     if (tokenId == null) throw new Error("Mint succeeded but tokenId was not found in the receipt");

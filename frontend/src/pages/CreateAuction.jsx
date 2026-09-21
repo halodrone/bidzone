@@ -286,6 +286,21 @@ function CreateForm() {
                 }
             }
 
+            // 3a-NFT) Model B: the NFT's own metadata image IS the media —
+            // no upload flow (auction items list the token image directly).
+            if (form.auctionType === "NFT" && nftAsset?.meta?.image) {
+                try {
+                    await supabase.from("auction_items").insert({
+                        auction_id: auctionId,
+                        media_url: nftAsset.meta.image,
+                        media_type: "IMAGE",
+                        sort_order: 0,
+                    });
+                } catch (mErr) {
+                    console.warn("[bidzone:nft] media insert failed:", mErr?.message);
+                }
+            }
+
             // 3b) Phase 7.2 FINAL (Model B) — NFT: the auction escrows an
             // EXISTING owned NFT. Sequence: verify ownership -> verify not
             // listed -> approve (token-specific) -> escrow register -> index.
@@ -368,7 +383,10 @@ function CreateForm() {
             // writes Supabase ONLY after transaction confirmation. Failure is
             // honest: the row stays recoverable via the Auction Room
             // "Register On-Chain" retry (Phase 6.5b).
-            if (isOnchainAvailable() && walletStatus === "ready" && privyWallet) {
+            // Phase 7.2 FINAL (Model B): NFT auctions skip the app-level
+            // BidzoneAuction mirror — their money + asset flow through
+            // BidzoneNFTEscrow (registerAuction/placeBid/settle).
+            if (isOnchainAvailable() && walletStatus === "ready" && privyWallet && form.auctionType !== "NFT") {
                 setPhase("onchain");
                 try {
                     const res = await registerOrReconcileAuction({

@@ -28,7 +28,7 @@ const STATUS_LABEL = { AVAILABLE: "AVAILABLE", IN_AUCTION: "IN AUCTION", IN_ESCR
 
 export function MyCollection() {
     const { session, profile } = useAuth();
-    const { wallet, walletStatus, address: embeddedAddress } = useWallet();
+    const { privyWallet, status: walletStatus, address: embeddedAddress } = useWallet();
     const myWallet = profile?.wallet_address || embeddedAddress || null;
     const qc = useQueryClient();
     const [receiveOpen, setReceiveOpen] = useState(false);
@@ -75,6 +75,13 @@ export function MyCollection() {
             const discovered = await discoverOwnedTransfers({ ownerWallet: myWallet, nftContracts: contracts });
             discovered.forEach((d) => add(d.nftContract, d.tokenId, null));
 
+            // Device-local recent-mints cache (REAL confirmed txs only) —
+            // rides over public-RPC lag between mint and index/log discovery.
+            try {
+                const raw = JSON.parse(localStorage.getItem(`bz_nft_recent:${String(myWallet).toLowerCase()}`) || "[]");
+                (Array.isArray(raw) ? raw : []).slice(0, 20).forEach((r) => r && r.nftContract && r.tokenId != null && add(r.nftContract, r.tokenId, null));
+            } catch { /* cache optional */ }
+
             // -------- 3) Verify EVERY candidate on-chain (truth) ------------
             const verified = [];
             const list = [...candidates.values()].slice(0, 60); // sanity cap
@@ -101,7 +108,7 @@ export function MyCollection() {
 
     async function mintDemo() {
         if (minting) return;
-        if (walletStatus !== "ready" || !wallet) {
+        if (walletStatus !== "ready" || !privyWallet) {
             toast.error("Embedded wallet is not ready");
             return;
         }
@@ -116,7 +123,7 @@ export function MyCollection() {
                 attributes: [{ trait_type: "Edition", value: "Testnet Demo" }, { trait_type: "Chain", value: "Monad Testnet" }],
             };
             const tokenUri = `data:application/json;base64,${btoa(unescape(encodeURIComponent(JSON.stringify(metaJson))))}`;
-            const minted = await mintNft({ wallet, tokenUri });
+            const minted = await mintNft({ wallet: privyWallet, tokenUri });
             // Index (insert-own; chain is authoritative)
             try {
                 const { row } = await ensureNftTokenRow({
@@ -125,7 +132,13 @@ export function MyCollection() {
                     collectionName: "BIDZONE Demo", attributes: metaJson.attributes, ownerWallet: myWallet,
                 });
                 if (row) await recordNftEvent({ session, tokenRowId: row.id, eventType: "MINT", txHash: minted.hash, toWallet: myWallet });
-            } catch { /* index best-effort */ }
+            } catch (idxErr) { console.warn('[bidzone:nft] demo-mint index failed:', idxErr?.message); }
+            try {
+                const key = `bz_nft_recent:${String(myWallet).toLowerCase()}`;
+                const raw = JSON.parse(localStorage.getItem(key) || "[]");
+                raw.unshift({ nftContract: NFT_CONTRACT_ADDRESS, tokenId: String(minted.tokenId), txHash: minted.hash, ts: Date.now() });
+                localStorage.setItem(key, JSON.stringify(raw.slice(0, 20)));
+            } catch { /* cache optional */ }
             toast.success(`Demo NFT #${minted.tokenId} minted to your embedded wallet`);
             qc.invalidateQueries({ queryKey: ["my-collection"] });
         } catch (e) {
@@ -171,20 +184,20 @@ export function MyCollection() {
             )}
 
             <ReceiveNftModal open={receiveOpen} onClose={() => setReceiveOpen(false)} myAddress={myWallet} />
-            <DetailHost detail={detail} onClose={() => setDetail(null)} />
+            <DetailHost detail={detail} onClose={() => setDetail(null)} wallet={privyWallet} />
         </div>
     );
 }
 
 const NFT_ESCROW_LOWER = (process.env.REACT_APP_NFT_ESCROW_ADDRESS || "").toLowerCase();
 
-function DetailHost({ detail, onClose }) {
+function DetailHost({ detail, onClose, wallet }) {
     const [sendOpen, setSendOpen] = useState(false);
     if (!detail) return null;
     const t = detail.token;
     const asset = {
         nftContract: t.nftContract, tokenId: t.tokenId, owner: t.owner,
-        escrowStatus: t.escrowStatus, listing: t.listing, wallet: t.wallet,
+        escrowStatus: t.escrowStatus, listing: t.listing, wallet,
         status: t.status, meta: t.meta, activeAuctionId: t.activeAuctionId,
         onSend: () => setSendOpen(true),
     };

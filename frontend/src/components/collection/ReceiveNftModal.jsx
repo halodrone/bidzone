@@ -19,7 +19,7 @@ import { useWallet } from "@/context/WalletContext";
 export function ReceiveNftModal({ open, onClose, myAddress }) {
     const qc = useQueryClient();
     const { session } = useAuth();
-    const { wallet, address: embeddedAddress } = useWallet();
+    const { address: embeddedAddress } = useWallet();
     const dest = embeddedAddress || myAddress;
 
     const [contract, setContract] = useState("");

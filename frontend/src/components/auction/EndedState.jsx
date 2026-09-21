@@ -18,8 +18,20 @@ import { MONAD } from "@/lib/monad";
  * database — never inferred client-side.
  */
 export function EndedState({ auction }) {
-    const { data } = useAuctionBids(auction.id, { limit: 5 });
+    const { data, isError: bidsError, isLoading: bidsLoading } = useAuctionBids(auction.id, { limit: 5 });
     const winning = (data?.rows ?? []).find((b) => b.status === "WINNING");
+
+    // Never claim "no sale" while the result set is unknown — a transient
+    // fetch failure must degrade to an honest loading/error state instead.
+    if (!winning && (bidsLoading || bidsError)) {
+        return (
+            <section data-testid="auction-ended-loading" className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-6 md:p-8">
+                <p className="text-sm text-white/55">
+                    {bidsError ? "Results are temporarily unavailable — refresh to re-check." : "Reading final results…"}
+                </p>
+            </section>
+        );
+    }
 
     if (!winning) {
         return (

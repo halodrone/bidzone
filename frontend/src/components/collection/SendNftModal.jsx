@@ -19,7 +19,7 @@ import { useWallet } from "@/context/WalletContext";
 export function SendNftModal({ open, onClose, asset }) {
     const qc = useQueryClient();
     const { session } = useAuth();
-    const { wallet } = useWallet();
+    const { privyWallet } = useWallet();
     const [to, setTo] = useState("");
     const [confirming, setConfirming] = useState(false);
     const [state, setState] = useState("idle"); // idle | pending | success | failed
@@ -29,7 +29,7 @@ export function SendNftModal({ open, onClose, asset }) {
 
     const { nftContract, tokenId, meta } = asset;
     const trimmed = to.trim();
-    const valid = /^0x[a-fA-F0-9]{40}$/.test(trimmed) && !/^0x0{40}$/i.test(trimmed) && !sameAddr(trimmed, wallet?.address);
+    const valid = /^0x[a-fA-F0-9]{40}$/.test(trimmed) && !/^0x0{40}$/i.test(trimmed) && !sameAddr(trimmed, privyWallet?.address);
 
     async function send() {
         if (!valid || state === "pending") return;
@@ -37,10 +37,10 @@ export function SendNftModal({ open, onClose, asset }) {
         try {
             // Final pre-flight: on-chain ownership + escrow lock (never trust cache).
             const owner = await readNftOwner(nftContract, tokenId);
-            if (!sameAddr(owner, wallet?.address)) throw new Error("This NFT is no longer owned by your embedded wallet");
+            if (!sameAddr(owner, privyWallet?.address)) throw new Error("This NFT is no longer owned by your embedded wallet");
             if (await isTokenEscrowed(nftContract, tokenId)) throw new Error("This NFT is locked in the escrow contract");
 
-            const res = await sendNftOnchain({ wallet, nftContract, tokenId, toAddress: trimmed });
+            const res = await sendNftOnchain({ wallet: privyWallet, nftContract, tokenId, toAddress: trimmed });
             setTxHash(res.hash);
             // Index the real transfer (best-effort — chain is authoritative).
             try {
