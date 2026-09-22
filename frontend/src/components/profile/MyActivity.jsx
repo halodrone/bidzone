@@ -33,9 +33,29 @@ import { MONAD } from "@/lib/monad";
 
 const TRACKING_ACTIVE = ["SHIPPED", "IN_TRANSIT", "OUT_FOR_DELIVERY"];
 
+/**
+ * Phase 7.5 — cross-page state synchronization (#7 fix).
+ * A lifecycle action succeeded somewhere in the app: invalidate EVERY react-query
+ * surface that derives from the same escrow/shipping truth so My Purchases,
+ * My Sales, My Bids and the Auction Room escrow panel immediately re-fetch the
+ * CURRENT state (no stale Confirm/Dispute, no double execution).
+ */
+function useLifecycleSync() {
+    const qc = useQueryClient();
+    return (auctionId) => {
+        qc.invalidateQueries({ queryKey: ["my-activity-purchases"] });
+        qc.invalidateQueries({ queryKey: ["my-activity-sales"] });
+        qc.invalidateQueries({ queryKey: ["my-activity-bids"] });
+        if (auctionId) {
+            qc.invalidateQueries({ queryKey: ["escrow-room", auctionId] });
+            qc.invalidateQueries({ queryKey: ["auction", auctionId] });
+            qc.invalidateQueries({ queryKey: ["auction-bids", auctionId] });
+        }
+    };
+}
+
 export function MyActivity({ initialTab = "purchases" } = {}) {
     const [tab, setTab] = useState(initialTab);
-
     return (
         <section data-testid="activity-card" className="bz-card p-5 md:p-6">
             <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

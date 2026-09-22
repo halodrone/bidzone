@@ -159,15 +159,6 @@ function Welcome() {
                             <Gavel className="h-4 w-4" />
                             Get Started
                         </button>
-                        <button
-                            type="button"
-                            data-testid="welcome-im-in"
-                            onClick={() => openAuthModal({ returnTo: "/" })}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-full bz-btn-secondary px-7 py-3.5 text-sm font-semibold sm:w-auto"
-                        >
-                            I&apos;m In
-                            <ArrowRight className="h-4 w-4" />
-                        </button>
                     </div>
                 </Reveal>
 
@@ -794,15 +785,6 @@ function FinalCta() {
                         >
                             <Gavel className="h-4 w-4" />
                             Get Started
-                        </button>
-                        <button
-                            type="button"
-                            data-testid="final-im-in"
-                            onClick={() => openAuthModal({ returnTo: "/" })}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-full bz-btn-secondary px-8 py-4 text-sm font-semibold sm:w-auto"
-                        >
-                            I&apos;m In
-                            <ArrowRight className="h-4 w-4" />
                         </button>
                     </div>
                 </Reveal>

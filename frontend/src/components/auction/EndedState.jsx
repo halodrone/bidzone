@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Trophy, PackageOpen, Crown, Loader2, ExternalLink, CheckCircle2, ShieldCheck, Truck, Gavel, MapPin } from "lucide-react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuctionBids } from "@/hooks/useAuctionRoom";
 import { fmtAmount, shortAddr, timeAgo } from "@/components/auction/format";
 import { useWallet } from "@/context/WalletContext";
@@ -122,9 +122,15 @@ export function EndedState({ auction }) {
                             </dd>
                         </div>
                     </dl>
-                    <p className="mt-4 text-[11px] text-white/40">
-                        Settlement pays 97.5% to the seller and 2.5% to the BIDZONE treasury.
-                    </p>
+                    {auction.auction_type === "PHYSICAL" && user?.id === winning.bidder_id ? (
+                        <p className="mt-4 text-[11px] text-white/40" data-testid="buyer-banner-completion-note">
+                            Your purchase is complete — payment was secured and released after your confirmation.
+                        </p>
+                    ) : (
+                        <p className="mt-4 text-[11px] text-white/40">
+                            Settlement pays 97.5% to the seller and 2.5% to the BIDZONE treasury.
+                        </p>
+                    )}
                     {auction.auction_type === "NFT" ? (
                         <SettleNftAction auction={auction} />
                     ) : auction.auction_type === "PHYSICAL" ? (
@@ -318,18 +324,19 @@ function SettleAction({ auction }) {
  * Phase 7.3 — party-scoped escrow + shipping state for the ENDED banner.
  * Both tables are party-RLS (buyer/seller only); third parties legitimately
  * resolve to null rows — the UI renders no settlement surface for them.
- * Phase 7.4: added refresh() so in-room lifecycle actions re-read state.
+ * Phase 7.5 (sync fix): the state now lives in react-query
+ * (["escrow-room", auctionId]) so a successful lifecycle action ANYWHERE
+ * (room, My Purchases, My Sales) invalidates ONE source of truth and every
+ * mounted view converges to the same current state. A Supabase realtime
+ * subscription on `shipping` (the table is in the realtime publication)
+ * additionally refreshes the room across tabs/devices.
  */
 function useAuctionEscrowState(auctionId) {
-    const [tick, setTick] = useState(0);
-    const [state, setState] = useState({ loading: true, escrow: null, shipping: null });
-    useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            if (!supabase) {
-                if (!cancelled) setState({ loading: false, escrow: null, shipping: null });
-                return;
-            }
+    const qc = useQueryClient();
+    const query = useQuery({
+        queryKey: ["escrow-room", auctionId],
+        queryFn: async () => {
+            if (!supabase) return { escrow: null, shipping: null };
             try {
                 const [esc, shp] = await Promise.all([
                     supabase
@@ -345,14 +352,34 @@ function useAuctionEscrowState(auctionId) {
                         .eq("auction_id", auctionId)
                         .maybeSingle(),
                 ]);
-                if (!cancelled) setState({ loading: false, escrow: esc.data || null, shipping: shp.data || null });
+                return { escrow: esc.data || null, shipping: shp.data || null };
             } catch {
-                if (!cancelled) setState({ loading: false, escrow: null, shipping: null });
+                return { escrow: null, shipping: null };
             }
-        })();
-        return () => { cancelled = true; };
-    }, [auctionId, tick]);
-    return { ...state, refresh: () => setTick((t) => t + 1) };
+        },
+        enabled: !!auctionId,
+    });
+
+    // Existing realtime pattern (same channel style as bids/comments).
+    useEffect(() => {
+        if (!supabase || !auctionId) return undefined;
+        const ch = supabase
+            .channel(`escrow-room-${auctionId}`)
+            .on(
+                "postgres_changes",
+                { event: "*", schema: "public", table: "shipping", filter: `auction_id=eq.${auctionId}` },
+                () => qc.invalidateQueries({ queryKey: ["escrow-room", auctionId] })
+            )
+            .subscribe();
+        return () => { supabase.removeChannel(ch); };
+    }, [auctionId, qc]);
+
+    return {
+        loading: query.isLoading,
+        escrow: query.data?.escrow ?? null,
+        shipping: query.data?.shipping ?? null,
+        refresh: () => qc.invalidateQueries({ queryKey: ["escrow-room", auctionId] }),
+    };
 }
 
 /** Small section header used by the role-specific physical panels. */
