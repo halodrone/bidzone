@@ -30,7 +30,7 @@ export function Footer({ variant = "app" }) {
                 >
                     {variant === "landing" ? (
                         <>
-                            <Link to={{ pathname: "/", search: "?tab=all", hash: "#live-auctions" }} className="hover:text-white">Explore</Link>
+                            <button type="button" data-testid="footer-explore" onClick={() => openAuthModal({ returnTo: "/?tab=all#live-auctions" })} className="hover:text-white">Explore</button>
                             <Link to={{ pathname: "/", hash: "#how-it-works" }} className="hover:text-white">How It Works</Link>
                             <Link to={{ pathname: "/", hash: "#about" }} className="hover:text-white">About</Link>
                             <button type="button" data-testid="footer-login" onClick={() => openAuthModal({ returnTo: "/" })} className="inline-flex items-center gap-1.5 hover:text-white">

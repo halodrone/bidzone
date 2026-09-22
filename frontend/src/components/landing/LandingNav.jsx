@@ -8,10 +8,9 @@ import { useAuth } from "@/context/AuthContext";
 // openAuthModal) and existing routes only — no new routes, no duplication.
 // The app-wide Header stays untouched for the authenticated experience.
 const LINKS = [
-    {
-        label: "Explore",
-        to: { pathname: "/", search: "?tab=all", hash: "#live-auctions" },
-    },
+    // Explore: browsing live auctions is the authenticated Home experience —
+    // open the existing auth modal and land the new user on the live listing.
+    { label: "Explore", auth: true },
     { label: "How It Works", to: { pathname: "/", hash: "#how-it-works" } },
     { label: "About", to: { pathname: "/", hash: "#about" } },
 ];
@@ -53,18 +52,34 @@ export function LandingNav() {
                         aria-label="Landing"
                         className="hidden md:flex items-center gap-1 text-sm ml-6"
                     >
-                        {LINKS.map((l) => (
-                            <Link
-                                key={l.label}
-                                to={l.to}
-                                data-testid={`landing-nav-${l.label
-                                    .toLowerCase()
-                                    .replace(/\s+/g, "-")}`}
-                                className="rounded-full px-3 py-2 text-white/70 hover:text-white hover:bg-white/[0.04] transition-colors"
-                            >
-                                {l.label}
-                            </Link>
-                        ))}
+                        {LINKS.map((l) =>
+                            l.auth ? (
+                                <button
+                                    key={l.label}
+                                    type="button"
+                                    data-testid="landing-nav-explore"
+                                    onClick={() =>
+                                        openAuthModal({
+                                            returnTo: "/?tab=all#live-auctions",
+                                        })
+                                    }
+                                    className="rounded-full px-3 py-2 text-white/70 hover:text-white hover:bg-white/[0.04] transition-colors"
+                                >
+                                    {l.label}
+                                </button>
+                            ) : (
+                                <Link
+                                    key={l.label}
+                                    to={l.to}
+                                    data-testid={`landing-nav-${l.label
+                                        .toLowerCase()
+                                        .replace(/\s+/g, "-")}`}
+                                    className="rounded-full px-3 py-2 text-white/70 hover:text-white hover:bg-white/[0.04] transition-colors"
+                                >
+                                    {l.label}
+                                </Link>
+                            )
+                        )}
                     </nav>
 
                     <div className="ml-auto flex items-center gap-2">
@@ -124,17 +139,35 @@ export function LandingNav() {
                             </button>
                         </div>
                         <nav className="flex flex-col gap-1">
-                            {LINKS.map((l) => (
-                                <Link
-                                    key={l.label}
-                                    to={l.to}
-                                    onClick={() => setOpen(false)}
-                                    className="flex items-center justify-between rounded-xl px-4 py-3 text-white/80 hover:text-white hover:bg-white/[0.04] transition"
-                                >
-                                    <span className="text-sm font-medium">{l.label}</span>
-                                    <ChevronRight className="h-4 w-4 text-white/30" />
-                                </Link>
-                            ))}
+                            {LINKS.map((l) =>
+                                l.auth ? (
+                                    <button
+                                        key={l.label}
+                                        type="button"
+                                        data-testid="landing-nav-explore-m"
+                                        onClick={() => {
+                                            setOpen(false);
+                                            openAuthModal({
+                                                returnTo: "/?tab=all#live-auctions",
+                                            });
+                                        }}
+                                        className="flex items-center justify-between rounded-xl px-4 py-3 text-left text-white/80 hover:text-white hover:bg-white/[0.04] transition"
+                                    >
+                                        <span className="text-sm font-medium">{l.label}</span>
+                                        <ChevronRight className="h-4 w-4 text-white/30" />
+                                    </button>
+                                ) : (
+                                    <Link
+                                        key={l.label}
+                                        to={l.to}
+                                        onClick={() => setOpen(false)}
+                                        className="flex items-center justify-between rounded-xl px-4 py-3 text-white/80 hover:text-white hover:bg-white/[0.04] transition"
+                                    >
+                                        <span className="text-sm font-medium">{l.label}</span>
+                                        <ChevronRight className="h-4 w-4 text-white/30" />
+                                    </Link>
+                                )
+                            )}
                         </nav>
                         <div className="mt-8 pt-6 border-t border-white/[0.06] flex flex-col gap-3">
                             <button

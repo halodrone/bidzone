@@ -366,3 +366,75 @@ select.bz-input option {
         animation: none;
     }
 }
+
+/* ------------------------------------------------------------------ */
+/* Phase Polish 2 — cinematic scroll reveal system (landing page)      */
+/* ------------------------------------------------------------------ */
+.rv {
+    opacity: 0;
+    transition:
+        opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+        transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--d, 0ms);
+    will-change: opacity, transform;
+}
+.rv.is-in {
+    opacity: 1;
+    transform: none;
+}
+.rv-up { transform: translateY(30px); }
+.rv-down { transform: translateY(-22px); }
+.rv-left { transform: translateX(-38px); }
+.rv-right { transform: translateX(38px); }
+.rv-scale { transform: scale(0.93); }
+.rv-fade { transform: none; }
+
+/* Slow drifting background accent (hero / final CTA) */
+@keyframes bz-drift {
+    from { transform: scale(1.02) translateY(0); }
+    to { transform: scale(1.08) translateY(-2%); }
+}
+.bz-drift {
+    animation: bz-drift 14s ease-in-out infinite alternate;
+}
+
+/* Scroll indicator line */
+@keyframes bz-scrollhint {
+    0% { transform: scaleY(0); transform-origin: top; }
+    45% { transform: scaleY(1); transform-origin: top; }
+    55% { transform: scaleY(1); transform-origin: bottom; }
+    100% { transform: scaleY(0); transform-origin: bottom; }
+}
+.bz-scrollhint {
+    animation: bz-scrollhint 2.2s ease-in-out infinite;
+}
+
+/* Shipping journey package dot (transform-only, cheap) */
+@keyframes bz-journey {
+    0% { transform: translateX(0); }
+    85% { transform: translateX(calc(100% - 0px)); opacity: 1; }
+    100% { transform: translateX(calc(100% - 0px)); opacity: 0; }
+}
+.bz-journey-dot {
+    animation: bz-journey 7s ease-in-out infinite;
+}
+
+/* Pulsing live accent for the bid moment */
+@keyframes bz-tension {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+.bz-tension {
+    animation: bz-tension 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rv {
+        opacity: 1 !important;
+        transform: none !important;
+        transition: none;
+    }
+    .bz-drift, .bz-scrollhint, .bz-journey-dot, .bz-tension {
+        animation: none !important;
+    }
+}
