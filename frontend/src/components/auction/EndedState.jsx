@@ -1,17 +1,23 @@
 import { useEffect, useState } from "react";
-import { Trophy, PackageOpen, Crown, Loader2, ExternalLink, CheckCircle2, ShieldCheck, Truck } from "lucide-react";
+import { Trophy, PackageOpen, Crown, Loader2, ExternalLink, CheckCircle2, ShieldCheck, Truck, Gavel, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuctionBids } from "@/hooks/useAuctionRoom";
 import { fmtAmount, shortAddr, timeAgo } from "@/components/auction/format";
 import { useWallet } from "@/context/WalletContext";
 import { useAuth } from "@/context/AuthContext";
-import { isOnchainAvailable, settleAuctionOnchain, toExplorerTx } from "@/lib/bidzoneAuction";
+import { isOnchainAvailable, settleAuctionOnchain, toExplorerTx, readAuctionStatus } from "@/lib/bidzoneAuction";
 import { isNftAvailable, settleNftAuctionOnchain, readEscrowStatus } from "@/lib/nft";
 import { recordNftEvent } from "@/lib/nftIndex";
 import { trackingLabel } from "@/lib/shipping";
 import { supabase } from "@/lib/supabase";
 import { MONAD } from "@/lib/monad";
+import {
+    ProvideAddress,
+    ConfirmationWindow,
+    ShipForm,
+    TrackingButtons,
+} from "@/components/profile/MyActivity";
 
 /**
  * Ended-state banner. Only renders when auction.status === 'ENDED'.
@@ -312,8 +318,10 @@ function SettleAction({ auction }) {
  * Phase 7.3 — party-scoped escrow + shipping state for the ENDED banner.
  * Both tables are party-RLS (buyer/seller only); third parties legitimately
  * resolve to null rows — the UI renders no settlement surface for them.
+ * Phase 7.4: added refresh() so in-room lifecycle actions re-read state.
  */
 function useAuctionEscrowState(auctionId) {
+    const [tick, setTick] = useState(0);
     const [state, setState] = useState({ loading: true, escrow: null, shipping: null });
     useEffect(() => {
         let cancelled = false;
@@ -343,78 +351,191 @@ function useAuctionEscrowState(auctionId) {
             }
         })();
         return () => { cancelled = true; };
-    }, [auctionId]);
-    return state;
+    }, [auctionId, tick]);
+    return { ...state, refresh: () => setTick((t) => t + 1) };
+}
+
+/** Small section header used by the role-specific physical panels. */
+function RoleSection({ icon: Icon, title, testid, children }) {
+    return (
+        <section data-testid={testid} className="rounded-xl border border-white/[0.08] bg-black/25 p-4">
+            <h4 className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">
+                <Icon className="h-3.5 w-3.5 text-[hsl(var(--bz-purple))]" />
+                {title}
+            </h4>
+            <div className="mt-3">{children}</div>
+        </section>
+    );
+}
+
+/** Read-only delivery progress rail (buyer view). */
+const RAIL = [
+    ["awaiting", "Awaiting seller shipment"],
+    ["SHIPPED", "Shipped"],
+    ["IN_TRANSIT", "In transit"],
+    ["OUT_FOR_DELIVERY", "Out for delivery"],
+    ["DELIVERED", "Delivered"],
+];
+function DeliveryRail({ status }) {
+    const active = !status ? 0 : RAIL.findIndex(([k]) => k === status);
+    return (
+        <ol data-testid="buyer-delivery-rail" className="space-y-1.5">
+            {RAIL.map(([k, label], i) => {
+                const done = i < active;
+                const current = i === active;
+                return (
+                    <li
+                        key={k}
+                        data-testid={`rail-${k.toLowerCase()}`}
+                        className="flex items-center gap-2.5 text-[11px]"
+                    >
+                        <span
+                            className={
+                                "inline-block h-2 w-2 rounded-full " +
+                                (done || current
+                                    ? "bg-[hsl(var(--bz-purple))] shadow-[0_0_10px_hsl(var(--bz-purple)/0.7)]"
+                                    : "bg-white/15")
+                            }
+                        />
+                        <span className={done || current ? "text-white/85" : "text-white/35"}>
+                            {label}
+                        </span>
+                    </li>
+                );
+            })}
+        </ol>
+    );
 }
 
 /**
- * Phase 7.3 — PHYSICAL post-win experience, ROLE-GATED (buyer protection).
+ * Phase 7.4 — PHYSICAL post-win experience, ROLE-SPECIFIC MENUS.
  *
- * Investigation result: the contract `settleAuction` pays 97.5% seller +
- * 2.5% treasury IMMEDIATELY from the escrowed winning bid — the contract has
- * no notion of the physical fulfillment lifecycle (ship -> deliver ->
- * confirm/dispute -> release). Buyer protection is therefore APP-LEVEL:
- *   * BUYER  — payment-secured + shipping lifecycle + tracking info.
- *              NEVER any settlement control.
- *   * SELLER — settlement status; the on-chain "Settle on-chain" control is
- *              only surfaced AFTER the DB escrow reached RELEASED (buyer
- *              confirmation / 48h auto-release / dispute resolved for seller).
- *   * Others — nothing (the old UI leaked a settle button to every viewer).
+ * Same physical auction, two intentionally different experiences:
+ *   BUYER  — "Your Purchase": PAYMENT / DELIVERY / RECEIPT sections
+ *            (payment status, carrier+tracking, delivery rail, and after
+ *            DELIVERED the real Confirm Receipt / Open Dispute actions).
+ *            Seller-only controls (Mark Shipped/In Transit/Delivered,
+ *            Settle on-chain) are NEVER rendered for the buyer.
+ *   SELLER — "Your Sale": SALE / SHIPPING / SETTLEMENT sections
+ *            (winning bid + buyer, ship form + tracking controls, and the
+ *            on-chain Settle on-chain action ONLY after escrow RELEASED).
+ *            Buyer actions (Confirm Receipt / Open Dispute) are NEVER
+ *            rendered for the seller.
+ *   OTHERS — no post-win action surface at all.
  *
- * The NFT flow (SettleNftAction) and the DIGITAL flow (SettleAction) are
- * unchanged.
+ * Role is derived per-auction (auction.seller.id / winning.bidder_id) — a
+ * user may sell auction A and win auction B. All actions reuse the existing
+ * party-gated RPCs via the shared components exported from MyActivity —
+ * no duplicated logic, no schema/RLS/contract changes.
  */
 function PhysicalSettlement({ auction, winning }) {
     const { user } = useAuth();
     const { privyWallet, status: walletStatus } = useWallet();
     const [busy, setBusy] = useState(false);
     const [txHash, setTxHash] = useState(null);
-    const { loading, escrow, shipping } = useAuctionEscrowState(auction.id);
+    const [onchainSettled, setOnchainSettled] = useState(false);
+    const { loading, escrow, shipping, refresh } = useAuctionEscrowState(auction.id);
 
     const uid = user?.id;
     const isSeller = !!uid && auction.seller?.id === uid;
     const isBuyer = !!uid && winning.bidder_id === uid;
 
-    // Third parties (and unknown parties) get NO settlement surface.
+    // Chain-aware SETTLED state: the DB escrow row stays RELEASED after the
+    // on-chain settle, so statusOf() is the honest source of truth for the
+    // final "completed" presentation.
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const st = await readAuctionStatus(auction.id);
+                if (!cancelled && st === 4) setOnchainSettled(true);
+            } catch {
+                /* read-only; never blocks the UI */
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [auction.id]);
+
+    // Third parties (and unknown parties) get NO post-win action surface.
     if (!isSeller && !isBuyer) return null;
     if (loading) return null;
 
     const escrowStatus = escrow?.status || null;
+    const tracking = shipping?.tracking_status || null;
+    const purchaseShape = {
+        auction_id: auction.id,
+        escrow_status: escrowStatus,
+        confirmation_deadline: escrow?.confirmation_deadline || null,
+        shipping,
+    };
 
-    // ---------------- BUYER: payment + shipping lifecycle only ----------------
+    // ============ BUYER — "Your Purchase": payment / delivery / receipt ============
     if (isBuyer) {
         return (
-            <div className="mt-4 space-y-2" data-testid="physical-buyer-panel">
-                {(escrowStatus === "FUNDED" || escrowStatus === "RELEASED") && (
-                    <p
-                        className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--bz-green)/0.5)] bg-[hsl(var(--bz-green)/0.12)] px-3 py-1 text-[11px] font-semibold text-[hsl(var(--bz-green))]"
-                        data-testid="buyer-payment-secured"
-                    >
-                        <ShieldCheck className="h-3.5 w-3.5" /> Payment secured in escrow
-                    </p>
-                )}
-                {escrowStatus === "FUNDED" && (
-                    <div className="rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm" data-testid="buyer-shipping-status">
-                        <p className="flex items-center gap-2 text-white/85">
-                            <Truck className="h-4 w-4 text-[hsl(var(--bz-purple))]" />
-                            {shipping ? trackingLabel(shipping.tracking_status) : "Awaiting seller shipment"}
+            <div className="mt-4 space-y-3" data-testid="physical-buyer-panel">
+                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/50">
+                    <PackageOpen className="h-3.5 w-3.5 text-[hsl(var(--bz-purple))]" />
+                    Your Purchase
+                </p>
+
+                <RoleSection icon={ShieldCheck} title="Payment" testid="buyer-section-payment">
+                    {(escrowStatus === "FUNDED" || escrowStatus === "RELEASED") ? (
+                        <p
+                            className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--bz-green)/0.5)] bg-[hsl(var(--bz-green)/0.12)] px-3 py-1 text-[11px] font-semibold text-[hsl(var(--bz-green))]"
+                            data-testid="buyer-payment-secured"
+                        >
+                            <ShieldCheck className="h-3.5 w-3.5" /> Payment secured in escrow
                         </p>
-                        {shipping?.carrier && shipping?.tracking_number && (
-                            <p className="mt-1.5 rounded-lg bg-black/30 px-3 py-2 text-[11px] text-white/70" data-testid="buyer-tracking-info">
-                                {shipping.carrier} · <span className="font-mono text-white">{shipping.tracking_number}</span>
-                                {shipping.shipped_at ? ` · shipped ${timeAgo(shipping.shipped_at)}` : ""}
-                            </p>
+                    ) : escrowStatus === "PENDING" ? (
+                        <p className="text-[11px] text-white/55" data-testid="buyer-payment-pending">
+                            Awaiting payment confirmation.
+                        </p>
+                    ) : null}
+                    <p className="mt-2 text-[11px] text-white/55">
+                        Winning bid:{" "}
+                        <span className="font-semibold text-white">{fmtAmount(winning.amount)} {MONAD.currency}</span>
+                        {escrow?.transaction_hash && (
+                            <>
+                                {" · "}
+                                <a
+                                    href={toExplorerTx(escrow.transaction_hash)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-white/70 hover:text-white"
+                                    data-testid="buyer-payment-tx"
+                                >
+                                    <ExternalLink className="h-3 w-3" /> bid tx
+                                </a>
+                            </>
                         )}
-                        {shipping?.tracking_status === "DELIVERED" && (
-                            <p className="mt-1.5 text-[11px] text-white/55">
-                                Confirm receipt or open a dispute in My Activity → Purchases (48h window).
-                            </p>
-                        )}
-                    </div>
+                    </p>
+                </RoleSection>
+
+                <RoleSection icon={Truck} title="Delivery" testid="buyer-section-delivery">
+                    {!shipping && escrowStatus === "FUNDED" ? (
+                        <ProvideAddress purchase={purchaseShape} refetch={refresh} />
+                    ) : (
+                        <div className="space-y-3">
+                            <DeliveryRail status={tracking} />
+                            {shipping?.carrier && shipping?.tracking_number && (
+                                <p className="rounded-lg bg-black/30 px-3 py-2 text-[11px] text-white/70" data-testid="buyer-tracking-info">
+                                    {shipping.carrier} · <span className="font-mono text-white">{shipping.tracking_number}</span>
+                                    {shipping.shipped_at ? ` · shipped ${timeAgo(shipping.shipped_at)}` : ""}
+                                </p>
+                            )}
+                        </div>
+                    )}
+                </RoleSection>
+
+                {escrowStatus === "FUNDED" && tracking === "DELIVERED" && (
+                    <RoleSection icon={CheckCircle2} title="Receipt / Order Confirmation" testid="buyer-section-receipt">
+                        <ConfirmationWindow purchase={purchaseShape} refetch={refresh} />
+                    </RoleSection>
                 )}
+
                 {escrowStatus === "RELEASED" && (
-                    <p className="text-[11px] text-white/55" data-testid="buyer-released-note">
-                        Completed — funds released to the seller after your confirmation.
+                    <p className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--bz-green)/0.5)] bg-[hsl(var(--bz-green)/0.12)] px-3 py-1 text-[11px] font-semibold text-[hsl(var(--bz-green))]" data-testid="buyer-released-note">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Receipt confirmed — purchase complete
                     </p>
                 )}
                 {escrowStatus === "REFUNDED" && (
@@ -422,13 +543,19 @@ function PhysicalSettlement({ auction, winning }) {
                         Escrow refunded — the seller failed to ship in time or the dispute favored you.
                     </p>
                 )}
+                {escrowStatus === "DISPUTED" && (
+                    <p className="text-[11px] text-white/55" data-testid="buyer-disputed-note">
+                        Dispute open — escrow is frozen until it is resolved.
+                    </p>
+                )}
             </div>
         );
     }
 
-    // ---------------- SELLER: settlement status + gated release ----------------
+    // ============ SELLER — "Your Sale": sale / shipping / settlement ============
     const settleReady =
         escrowStatus === "RELEASED" &&
+        !onchainSettled &&
         isOnchainAvailable() &&
         auction.contract_auction_id &&
         walletStatus === "ready" &&
@@ -443,6 +570,7 @@ function PhysicalSettlement({ auction, winning }) {
             });
             setTxHash(hash);
             if (receipt.status !== "success") throw new Error("Settlement reverted on-chain");
+            setOnchainSettled(true);
             toast.success("Auction settled on-chain", {
                 description: "Seller received 97.5%, treasury 2.5%.",
             });
@@ -456,54 +584,100 @@ function PhysicalSettlement({ auction, winning }) {
     }
 
     return (
-        <div className="mt-4 space-y-2" data-testid="physical-seller-panel">
-            {escrowStatus === "PENDING" && (
-                <p className="text-[11px] text-white/55" data-testid="seller-settlement-status">
-                    Awaiting buyer payment confirmation.
+        <div className="mt-4 space-y-3" data-testid="physical-seller-panel">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/50">
+                <Gavel className="h-3.5 w-3.5 text-[hsl(var(--bz-purple))]" />
+                Your Sale
+            </p>
+
+            <RoleSection icon={Trophy} title="Sale" testid="seller-section-sale">
+                <p className="text-sm text-white/85">
+                    Winning bid:{" "}
+                    <span className="font-semibold">{fmtAmount(winning.amount)} {MONAD.currency}</span>
                 </p>
-            )}
-            {escrowStatus === "FUNDED" && (
-                <div className="rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-sm" data-testid="seller-settlement-status">
-                    <p className="text-white/85">
-                        Buyer protection active — settlement unlocks after delivery is confirmed (or the 48h window closes).
-                    </p>
-                    {shipping ? (
-                        <p className="mt-1.5 text-[11px] text-white/60">
-                            Shipment: {trackingLabel(shipping.tracking_status)}
+                <p className="mt-1 text-[11px] text-white/55">
+                    Buyer:{" "}
+                    <span className="font-mono text-white/75">
+                        {shortAddr(winning.wallet_address) || "winner on record"}
+                    </span>
+                    {" · "}
+                    Payment {escrowStatus === "PENDING" ? "awaiting confirmation" : "secured in escrow"}
+                </p>
+            </RoleSection>
+
+            <RoleSection icon={Truck} title="Shipping" testid="seller-section-shipping">
+                {(!shipping || shipping.tracking_status === "PENDING" || shipping.tracking_status === "LABEL_CREATED") ? (
+                    escrowStatus === "FUNDED" ? (
+                        <ShipForm auctionId={auction.id} refetch={refresh} />
+                    ) : (
+                        <p className="text-[11px] text-white/55">Shipping unlocks once payment is confirmed.</p>
+                    )
+                ) : (
+                    <div className="space-y-2">
+                        <p className="text-sm text-white/85">
+                            {trackingLabel(tracking)}
                             {shipping.carrier ? ` · ${shipping.carrier}` : ""}
                             {shipping.tracking_number ? ` · ${shipping.tracking_number}` : ""}
                         </p>
-                    ) : (
-                        <p className="mt-1.5 text-[11px] text-white/60">
-                            Ship within 72 hours — add carrier and tracking in My Activity → Sales.
+                        {tracking === "DELIVERED" ? (
+                            <p className="text-[11px] text-white/55" data-testid="seller-delivered-note">
+                                Delivered {shipping.delivered_at ? timeAgo(shipping.delivered_at) : ""} — the buyer is
+                                reviewing the order.
+                            </p>
+                        ) : (
+                            <TrackingButtons sale={{ id: auction.id, shipping }} refetch={refresh} />
+                        )}
+                    </div>
+                )}
+            </RoleSection>
+
+            <RoleSection icon={MapPin} title="Settlement" testid="seller-section-settlement">
+                {onchainSettled ? (
+                    <p className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--bz-green)/0.5)] bg-[hsl(var(--bz-green)/0.12)] px-3 py-1 text-[11px] font-semibold text-[hsl(var(--bz-green))]" data-testid="seller-settled-note">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Settlement complete
+                    </p>
+                ) : escrowStatus === "RELEASED" ? (
+                    <div className="space-y-2">
+                        <p className="text-sm text-white/85" data-testid="seller-settlement-ready">
+                            Settlement ready — the buyer confirmed receipt.
                         </p>
-                    )}
-                </div>
-            )}
-            {escrowStatus === "RELEASED" && !txHash && settleReady && (
-                <button
-                    type="button"
-                    data-testid="settle-onchain"
-                    disabled={busy}
-                    onClick={settle}
-                    className="inline-flex items-center gap-2 rounded-full bz-btn-primary px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
-                >
-                    {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-                    Settle on-chain
-                </button>
-            )}
-            {escrowStatus === "RELEASED" && txHash && (
-                <a
-                    href={toExplorerTx(txHash)}
-                    target="_blank"
-                    rel="noreferrer"
-                    data-testid="settle-tx-link"
-                    className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white"
-                >
-                    <ExternalLink className="h-3 w-3" />
-                    Settlement complete — view on {MONAD.networkName}
-                </a>
-            )}
+                        {settleReady && (
+                            <button
+                                type="button"
+                                data-testid="settle-onchain"
+                                disabled={busy}
+                                onClick={settle}
+                                className="inline-flex items-center gap-2 rounded-full bz-btn-primary px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
+                            >
+                                {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                                Settle on-chain
+                            </button>
+                        )}
+                        {txHash && (
+                            <a
+                                href={toExplorerTx(txHash)}
+                                target="_blank"
+                                rel="noreferrer"
+                                data-testid="settle-tx-link"
+                                className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white"
+                            >
+                                <ExternalLink className="h-3 w-3" />
+                                View on {MONAD.networkName}
+                            </a>
+                        )}
+                    </div>
+                ) : escrowStatus === "REFUNDED" ? (
+                    <p className="text-[11px] text-white/55" data-testid="seller-refunded-note">
+                        Escrow refunded to the buyer.
+                    </p>
+                ) : (
+                    <p className="text-sm text-white/75" data-testid="seller-settlement-status">
+                        {tracking === "DELIVERED"
+                            ? "Delivered — waiting for buyer confirmation (48h window)."
+                            : "Waiting for buyer confirmation."}
+                    </p>
+                )}
+            </RoleSection>
         </div>
     );
 }

@@ -265,7 +265,7 @@ function PendingPayment({ purchase }) {
     );
 }
 
-function ProvideAddress({ purchase, refetch }) {
+export function ProvideAddress({ purchase, refetch }) {
     const { data: addresses } = useMyAddresses();
     const [selected, setSelected] = useState(null);
     const [adding, setAdding] = useState(false);
@@ -339,7 +339,7 @@ function ProvideAddress({ purchase, refetch }) {
     );
 }
 
-function ConfirmationWindow({ purchase, refetch }) {
+export function ConfirmationWindow({ purchase, refetch }) {
     const [reason, setReason] = useState("");
     const [disputing, setDisputing] = useState(false);
     const [busy, setBusy] = useState(false);
@@ -613,7 +613,7 @@ function BuyerAddress({ auctionId }) {
     );
 }
 
-function ShipForm({ auctionId, refetch }) {
+export function ShipForm({ auctionId, refetch }) {
     const [carrier, setCarrier] = useState("");
     const [tracking, setTracking] = useState("");
     const [busy, setBusy] = useState(false);
@@ -650,7 +650,7 @@ function ShipForm({ auctionId, refetch }) {
     );
 }
 
-function TrackingButtons({ sale, refetch }) {
+export function TrackingButtons({ sale, refetch }) {
     const { session } = useAuth();
     const [busy, setBusy] = useState(false);
     async function update(status) {
