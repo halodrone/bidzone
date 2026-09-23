@@ -24,7 +24,7 @@ export function useLiveAuctions(filter = "live", limit = 12, category = "", sear
         queryFn: async () => {
             if (!supabase) return [];
 
-            const base = supabase
+            let q = supabase
                 .from("auctions")
                 .select(
                     `

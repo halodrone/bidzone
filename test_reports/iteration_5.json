@@ -1,0 +1,45 @@
+{
+  "summary": "Verified all requested BIDZONE targeted UI fixes on the live preview URL as authenticated Seller A (Supabase password grant). Discovered and fixed a critical syntax bug introduced in useLiveAuctions.js that blocked the entire Live Auctions feature; after the fix every requested scenario passes (seller username display, NFT/Physical media condition, category=collectibles filter+display, Collection mobile 360/390 non-overflow). NFT image reuse into auction_items and NFT selected preview using nftAsset.meta.image are correctly wired in source (lines 311-322 and 638-639 of CreateAuction.jsx) but could not be end-to-end exercised without an actual NFT deep-link (per task instruction: no on-chain transactions).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "hooks/useLiveAuctions.js", "issue": "ReferenceError: `q is not defined`. Declaration used `const base = supabase.from(...)` but every subsequent line reassigned `q` (undeclared). Result: every Live Auctions query threw, showing live-auctions-error or an infinite skeleton. Fixed by changing `const base` -> `let q`.", "selector": "[data-testid=live-auctions-error] / [data-testid=live-auctions-skeleton]", "priority": "CRITICAL (fixed in this iteration)"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": [
+    {"name": "Home AuctionCard seller identity", "result": "PASS", "details": "/?tab=all rendered 2 auction cards. First card shows seller 'sellera' (username local-part). Full document body contains no 'Anonymous seller', no 'Seller:' prefix, and no '@' inside any auction-card element."},
+    {"name": "Home category chip displays 'NFT' for legacy collectibles slug", "result": "PASS", "details": "Navigating /?category=collectibles&tab=all renders [data-testid=live-auctions-category-chip] with text 'Category: NFT'. Click href in CategorySection.jsx keeps legacy slug intact (?category=collectibles)."},
+    {"name": "useLiveAuctions filters auction_type=NFT when category=='collectibles'", "result": "PASS (source verified + runtime)", "details": "Line 43 of useLiveAuctions.js applies q.eq('auction_type','NFT') for slug 'collectibles'. Runtime query succeeded (empty state 'The zone is quiet.') because current DB has no LIVE NFT auctions; error/skeleton both false after fix."},
+    {"name": "Create Auction: PHYSICAL default shows MediaUploader", "result": "PASS", "details": "On /create default (auctionType=PHYSICAL) an <input type=file> is present and [data-testid=nft-no-upload-note] is absent."},
+    {"name": "Create Auction: NFT hides Photo/Video uploader", "result": "PASS", "details": "After select_option('create-type','NFT'), no <input type=file> exists on the page; [data-testid=nft-no-upload-note] renders; [data-testid=create-nft-hint] renders. The nft-selected-card path is guarded on isNftFlow and remains intact."},
+    {"name": "Create Auction: switch back to PHYSICAL restores uploader", "result": "PASS", "details": "select_option('create-type','PHYSICAL') restores <input type=file> and removes the nft-no-upload-note."},
+    {"name": "NFT image reuse into auction_items (source check)", "result": "PASS (source only)", "details": "CreateAuction.jsx lines 311-322 insert {auction_id, media_url: nftAsset.meta.image, media_type:'IMAGE', sort_order:0} into auction_items when auctionType==='NFT' and nftAsset?.meta?.image exists. Preview inside nft-selected-card (lines 638-639) uses nftAsset.meta.image directly. Not exercised end-to-end (no live NFT deep link)."},
+    {"name": "Collection mobile 360 no overflow", "result": "PASS", "details": "/profile?tab=collection at 360x800: document.documentElement.scrollWidth == clientWidth == 360."},
+    {"name": "Collection mobile 390 no overflow", "result": "PASS", "details": "Same at 390x800: scrollWidth == clientWidth == 390."}
+  ],
+  "test_report_links": [],
+  "action_items": [
+    "Confirm my one-line fix in frontend/src/hooks/useLiveAuctions.js is acceptable (renamed `const base` to `let q`). Consider a lint rule to catch undeclared identifiers to prevent similar issues (e.g., ESLint no-undef).",
+    "Optional: perform an authenticated end-to-end NFT publish test (out of scope here — task explicitly forbids blockchain transactions) to observe the inserted auction_items row and card thumbnail using nftAsset.meta.image."
+  ],
+  "critical_code_review_comments": [
+    "useLiveAuctions.js: `const base = ...` with subsequent `q = q.eq(...)` chains was a broken refactor of the previous `let q = ...` pattern. It escaped review because unit tests / lint on changed file was not run. Recommend enabling ESLint `no-undef` and running lint on modified files in CI.",
+    "AuctionCard.sellerUsername fallback path uses seller.email OR (seller.id === viewer.id ? viewer.email : '') OR seller.display_name — final split on '@' guarantees no full email or @ ever leaks. Good.",
+    "CategorySection.HOME_CATEGORIES maps the display label only, preserving CATEGORIES export used by chip lookup and slug identifier — clean separation.",
+    "LiveAuctionsSection.DISPLAY_CATEGORY_LABELS maps 'collectibles' -> 'NFT' before falling back to CATEGORIES lookup, so the chip label matches home category tile.",
+    "CreateAuction media condition switched from isNftFlow to form.auctionType !== 'NFT', which correctly hides the uploader as soon as the user selects NFT (even before an NFT is deep-linked).",
+    "MyCollection.jsx applies min-w-0 max-w-full on the container and grid; grid-cols-1 on mobile prevents column overflow — matches spec."
+  ],
+  "updated_files": [
+    "/app/frontend/src/hooks/useLiveAuctions.js — changed `const base = supabase.from(...)` to `let q = supabase.from(...)` to fix ReferenceError (`q is not defined`) that was breaking every home auctions query."
+  ],
+  "success_rate": {"backend": "N/A (frontend-only)", "frontend": "100% after fix (9/9 scenarios)"},
+  "test_credentials": "/app/memory/test_credentials.md Seller A. Password-grant token installed into localStorage['sb-ialusnghydghsykekgeb-auth-token'] before reload.",
+  "seed_data_creation": "None. Used the existing 2 auctions belonging to Seller A on the preview DB; no new rows or NFTs created; no blockchain calls executed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Auth trick: POST https://ialusnghydghsykekgeb.supabase.co/auth/v1/token?grant_type=password with anon key from frontend/.env, then set localStorage['sb-ialusnghydghsykekgeb-auth-token'] and reload. Home hero + Live Auctions render only for authenticated sessions. Live NFT auctions currently do not exist in the DB, so /?category=collectibles&tab=all resolves to the polished empty state — this is expected (query correctly applies auction_type=NFT).",
+  "rca of the issue": "useLiveAuctions.js was refactored to add the `category=='collectibles'` -> `auction_type=='NFT'` filter and a keyword search branch. During that refactor, the initial query builder was renamed from `let q = ...` to `const base = ...`, but every subsequent branch still referenced `q`. Because the module is ES-strict, assignments to the undeclared `q` throw ReferenceError inside the queryFn; React Query reports isError=true on the initial load and, on subsequent refetches with different params, transiently isLoading=true, which explains the skeleton I saw with category=collectibles. Reproduction: (a) unauth or auth, visit /?tab=all; before fix -> live-auctions-error banner; (b) visit /?category=collectibles&tab=all; before fix -> permanent skeleton. Mitigation: renamed `const base` to `let q` (single-line change) so every existing branch works as originally intended. Recommend adding ESLint `no-undef` to prevent this class of bug."
+}
