@@ -95,9 +95,8 @@ export function Hero() {
 
                     {/* Feature strip */}
                     <ul
-                        id="how-it-works"
                         data-testid="hero-features"
-                        className="mt-10 grid scroll-mt-32 grid-cols-2 gap-3 sm:grid-cols-4"
+                        className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4"
                     >
                         {FEATURES.map(({ icon: Icon, label }) => (
                             <li

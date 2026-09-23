@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { Header } from "@/components/home/Header";
 import { Hero } from "@/components/home/Hero";
+import { HowItWorks } from "@/components/home/HowItWorks";
 import { CategorySection } from "@/components/home/CategorySection";
 import { LiveAuctionsSection } from "@/components/home/LiveAuctionsSection";
 import { CreateAuctionCTA } from "@/components/home/CreateAuctionCTA";
@@ -39,6 +40,7 @@ export default function Home() {
             <Header />
             <main>
                 <Hero />
+                <HowItWorks />
                 <CategorySection />
                 <LiveAuctionsSection />
                 <CreateAuctionCTA />
