@@ -8,6 +8,8 @@ import { AuctionCard, AuctionCardSkeleton } from "@/components/home/AuctionCard"
 import { EmptyState } from "@/components/home/EmptyState";
 import { CATEGORIES } from "@/components/home/CategorySection";
 
+const DISPLAY_CATEGORY_LABELS = { collectibles: "NFT" };
+
 const TABS = [
     { key: "live",         label: "Live",         icon: Radio },
     { key: "ending-soon",  label: "Ending Soon",  icon: Timer },
@@ -35,7 +37,7 @@ export function LiveAuctionsSection() {
 
     const { data, isLoading, isError } = useLiveAuctions(filter, 12, category, search);
     const auctions = data ?? [];
-    const categoryLabel = CATEGORIES.find((c) => c.slug === category)?.label;
+    const categoryLabel = DISPLAY_CATEGORY_LABELS[category] || CATEGORIES.find((c) => c.slug === category)?.label;
 
     function clearCategory() {
         const next = new URLSearchParams(searchParams);

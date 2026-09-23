@@ -62,7 +62,7 @@ export function MyActivity({ initialTab = "purchases" } = {}) {
                 <div>
                     <h2 className="text-lg font-semibold text-white">My Activity</h2>
                 </div>
-                <div className="inline-flex items-center gap-1 rounded-full bg-white/[0.03] border border-white/[0.06] p-1 self-start">
+                <div className="grid w-full grid-cols-2 items-center gap-1 rounded-2xl bg-white/[0.03] border border-white/[0.06] p-1 self-start sm:inline-flex sm:w-auto sm:rounded-full">
                     <TabBtn testId="activity-tab-purchases" active={tab === "purchases"} onClick={() => setTab("purchases")}>
                         <Package className="h-3.5 w-3.5" /> Purchases
                     </TabBtn>
@@ -97,7 +97,7 @@ function TabBtn({ children, active, onClick, testId }) {
             aria-selected={active}
             onClick={onClick}
             className={
-                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition " +
+                "inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium transition " +
                 (active
                     ? "bg-[hsl(var(--bz-purple)/0.18)] text-[hsl(var(--bz-purple))]"
                     : "text-white/50 hover:text-white")

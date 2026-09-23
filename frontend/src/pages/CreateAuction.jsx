@@ -725,8 +725,8 @@ function CreateForm() {
                 )}
             </div>
 
-            {!isNftFlow && <MediaUploader media={media} setMedia={setMedia} />}
-            {isNftFlow && (
+            {form.auctionType !== "NFT" && <MediaUploader media={media} setMedia={setMedia} />}
+            {form.auctionType === "NFT" && (
                 <p className="flex items-center gap-1.5 rounded-xl border border-white/[0.06] bg-black/25 px-3 py-2 text-[11px] text-white/45" data-testid="nft-no-upload-note">
                     <ImageOff className="h-3.5 w-3.5" /> NFT imagery comes from the token metadata — no upload needed.
                 </p>

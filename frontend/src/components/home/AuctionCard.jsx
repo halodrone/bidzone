@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Eye, MessageCircle, Heart, ShieldCheck, ImageOff } from "lucide-react";
 import { CountdownTimer } from "@/components/home/CountdownTimer";
+import { useAuth } from "@/context/AuthContext";
 
 /**
  * Format a Numeric(38,18) string as a compact display value.
@@ -30,11 +31,23 @@ function coverImage(auction) {
     return sorted[0].media_url;
 }
 
+function sellerUsername(value, viewer) {
+    const seller = Array.isArray(value) ? value[0] || {} : value || {};
+    const source = seller.username || seller.email || (seller.id === viewer?.id ? viewer.email : "") || seller.display_name || "Seller";
+    return String(source).split("@")[0].trim() || "Seller";
+}
+
+function displayCategory(category) {
+    return String(category || "").toLowerCase() === "collectibles" ? "NFT" : category;
+}
+
 export function AuctionCard({ auction }) {
+    const { user } = useAuth();
     const img = coverImage(auction);
     const [imgOk, setImgOk] = useState(Boolean(img));
     useEffect(() => setImgOk(Boolean(img)), [img]);
-    const seller = auction.seller || {};
+    const seller = Array.isArray(auction.seller) ? auction.seller[0] || {} : auction.seller || {};
+    const sellerName = sellerUsername(seller, user);
     const price = auction.current_bid ?? auction.starting_bid;
     const isVerified = (seller.reputation_score ?? 0) >= 50;
 
@@ -86,7 +99,7 @@ export function AuctionCard({ auction }) {
                 <div className="absolute left-3 bottom-3 flex flex-wrap gap-1.5">
                     {auction.category && (
                         <span className="rounded-full bg-black/60 backdrop-blur border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-widest text-white/85">
-                            {auction.category}
+                            {displayCategory(auction.category)}
                         </span>
                     )}
                     {auction.auction_type && (
@@ -118,12 +131,12 @@ export function AuctionCard({ auction }) {
                             />
                         ) : (
                             <div className="h-full w-full flex items-center justify-center text-[10px] text-white/60">
-                                {(seller.display_name || seller.username || "?").slice(0, 1).toUpperCase()}
+                                {sellerName.slice(0, 1).toUpperCase()}
                             </div>
                         )}
                     </div>
                     <span className="text-xs text-white/60 truncate">
-                        {seller.display_name || seller.username || "Anonymous seller"}
+                        {sellerName}
                     </span>
                     {isVerified && (
                         <span

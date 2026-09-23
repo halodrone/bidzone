@@ -149,7 +149,7 @@ export function MyCollection() {
     }
 
     return (
-        <div data-testid="my-collection" className="min-w-0">
+        <div data-testid="my-collection" className="min-w-0 max-w-full">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-white/50">
                     NFTs owned by your embedded wallet — verified live on-chain (ownerOf).{" "}

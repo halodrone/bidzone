@@ -38,8 +38,10 @@ export function useLiveAuctions(filter = "live", limit = 12, category = "", sear
                 )
                 .limit(limit);
 
-            let q = base;
-            if (category) q = q.eq("category", category);
+            // `collectibles` is the legacy internal identifier for the Home NFT showcase.
+            // Keep the identifier stable, but filter by NFT type and display it as NFT.
+            if (category === "collectibles") q = q.eq("auction_type", "NFT");
+            else if (category) q = q.eq("category", category);
             const keyword = search.trim().slice(0, 80).replace(/[\\%_(),]/g, " ").replace(/\s+/g, " ");
             if (keyword) q = q.or(`title.ilike.%${keyword}%,description.ilike.%${keyword}%,category.ilike.%${keyword}%`);
             if (filter === "live") {
