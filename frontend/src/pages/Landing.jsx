@@ -10,7 +10,6 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { Footer } from "@/components/home/Footer";
-import { HowItWorks } from "@/components/home/HowItWorks";
 import { Reveal, useParallax, useCountUp } from "@/lib/motion";
 
 /**
@@ -76,7 +75,6 @@ export default function Landing() {
                 <Welcome />
                 <WhatIs />
                 <Story />
-                <HowItWorks />
                 <TheBid />
                 <NftSection />
                 <Transparency />
@@ -337,6 +335,7 @@ function EditorialImg({ src, label, ratio, parallax = 0.08 }) {
 function TheBid() {
     return (
         <section
+            id="how-it-works"
             data-testid="the-bid"
             className="relative scroll-mt-24 overflow-hidden border-y border-white/[0.05] py-24 md:py-36"
         >

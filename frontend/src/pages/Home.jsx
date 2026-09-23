@@ -1,8 +1,8 @@
-import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Header } from "@/components/home/Header";
 import { Hero } from "@/components/home/Hero";
-import { HowItWorks } from "@/components/home/HowItWorks";
+import { HowItWorksModal } from "@/components/home/HowItWorksModal";
 import { CategorySection } from "@/components/home/CategorySection";
 import { LiveAuctionsSection } from "@/components/home/LiveAuctionsSection";
 import { CreateAuctionCTA } from "@/components/home/CreateAuctionCTA";
@@ -10,42 +10,46 @@ import { Footer } from "@/components/home/Footer";
 
 export default function Home() {
     const location = useLocation();
+    const navigate = useNavigate();
+    const [hiwOpen, setHiwOpen] = useState(false);
 
-    // Functional navigation: "Live Zone" / "Explore" / category cards link here
-    // with ?tab= / ?category= (and/or #live-auctions); the landing's
-    // "How It Works" link arrives via #how-it-works. Scroll the requested
-    // section into view once it has mounted so the destination is visible.
+    // Functional navigation:
+    //  • ?tab= / ?category= or #live-auctions → smooth-scroll to Live Auctions
+    //  • #how-it-works → open the How It Works modal (no scroll, no separate route)
+    // The hash is consumed and cleared so re-opening still works after close.
     useEffect(() => {
         const params = new URLSearchParams(location.search);
+
+        if (location.hash === "#how-it-works") {
+            setHiwOpen(true);
+            navigate({ pathname: location.pathname, search: location.search, hash: "" }, { replace: true });
+            return undefined;
+        }
+
         const hasTarget =
             location.hash === "#live-auctions" ||
-            location.hash === "#how-it-works" ||
             params.has("tab") ||
             params.has("category");
         if (!hasTarget) return undefined;
-        const id =
-            location.hash === "#how-it-works"
-                ? "how-it-works"
-                : "live-auctions";
         const t = setTimeout(() => {
             document
-                .getElementById(id)
+                .getElementById("live-auctions")
                 ?.scrollIntoView({ behavior: "smooth", block: "start" });
         }, 350);
         return () => clearTimeout(t);
-    }, [location.hash, location.search]);
+    }, [location.hash, location.search, location.pathname, navigate]);
 
     return (
         <div data-testid="page-home" className="bz-ambient min-h-screen">
             <Header />
             <main>
                 <Hero />
-                <HowItWorks />
                 <CategorySection />
                 <LiveAuctionsSection />
                 <CreateAuctionCTA />
             </main>
             <Footer />
+            <HowItWorksModal open={hiwOpen} onClose={() => setHiwOpen(false)} />
         </div>
     );
 }
