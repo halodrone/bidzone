@@ -409,3 +409,44 @@
 ##       message: "PHASE POLISH 2 COMPLETE — CINEMATIC STORYTELLING LANDING (replaces Polish-1 card-style landing; Home/Discover untouched). FILES CHANGED: (1) pages/Landing.jsx FULL REWRITE — 10-chapter narrative: 01 WELCOME (full-screen hero, gavel-on-black drifting bg + parallax, 'WELCOME TO BIDZONE' + 'WHERE BIDS COME ALIVE.', spec copy, GET STARTED + I'M IN -> openAuthModal, 'SCROLL TO EXPLORE' animated hint), 02 WHAT IS BIDZONE id=about ('NOT JUST AN AUCTION.' / 'IT'S THE EXPERIENCE AROUND THE BID.' + 7 journey words DISCOVER..RECEIVE rising sequentially 140ms stagger), 03 EVERY BID TELLS A STORY (5 editorial images — sneaker/watch/chronograph/Rolleiflex/DSLR — overlapping collage, multi-direction reveals + per-image parallax, zero auction data), 04 THE BID id=how-it-works ('MAKE YOUR MOVE.' stylized CURRENT 0.42 -> NEXT 0.45 -> TIME 00:07 with tension pulse + honesty caption 'Illustrative moment'; NO real auction state), 05 NFT ('YOUR NFT. YOUR AUCTION.' + Model-B-honest copy 'BIDZONE never mints for you' + 6-step flow My Collection->Select NFT->Auction This NFT->Bids->Winner->NFT Received + purple art scale-reveal + VERIFIED ON-CHAIN chip), 06 TRANSPARENCY ('TRANSPARENT BY DESIGN.' / 'NO HIDDEN RESERVE. NO SURPRISE FEES.' + count-up 97.5% SELLER / 2.5% BIDZONE + 'LOSING BIDS PAY NO BIDZONE FEE.' + 2.5%-only-on-settlement explainer), 07 SHIPPING ('WIN IT. FOLLOW THE JOURNEY.' SELLER->CHOOSE CARRIER->TRACKING->IN TRANSIT->DELIVERED->BUYER with traveling package dot (desktop) / vertical ladder (mobile) + carriers: JNE·J&T·SiCepat·DHL·FedEx·UPS·Pos Indonesia·Cainiao·Other — NO JNE tie-in, no carrier APIs), 08 PAYMENT SECURED ('YOUR PAYMENT. SECURED.' + BID->ESCROW->DELIVERY->CONFIRM->RELEASE->SETTLEMENT staggered chips; NO settle CTA, NO fake tx), 09 MONAD minimal strip (no RPC/chain config), 10 FINAL CTA ('READY TO TAKE YOUR FIRST BID?' + 'The next auction is waiting.' + GET STARTED / I'M IN + gold-gavel drifting bg). (2) NEW lib/motion.js — Reveal (IntersectionObserver, variants up/down/left/right/scale/fade + --d stagger, disconnects after reveal), useParallax (rAF transform-only, DISABLED <768px + reduced-motion), useCountUp (viewport-triggered eased count). (3) index.css — .rv reveal system + bz-drift (bg slow drift) + bz-scrollhint + bz-journey-dot (transform-only traveling package) + bz-tension pulse; prefers-reduced-motion disables ALL. (4) LandingNav.jsx — Explore now opens auth modal with returnTo /?tab=all#live-auctions (guests: browsing = sign in; post-auth lands on live listing), How It Works -> /#how-it-works, About -> /#about. (5) Footer.jsx landing variant updated to match. UNCHANGED: App.js gate, Home, all logic/contracts/shipping/NFT/fees. VALIDATION: build PASS 54.89s; logged-out landing verified section-by-section (all 10 chapters + testids); scroll reveals fire (journey words 13/13 revealed, images in, count-up lands on 97.5%/2.5%); NO auction grid (live-auctions-grid count=0); NO settle CTA (0); Get Started opens existing auth modal; AUTHED USER -> Home (landing gone); ZERO horizontal overflow 360/390/1440 at hero/mid/deep; animations non-blocking (transform/opacity only). POLISH 2 DONE."
 ##     - agent: "main"
 ##       message: "PHASE 7.4 COMPLETE — ROLE-SPECIFIC PHYSICAL ROOM UI (UI/UX only; zero logic/schema/RLS/contract/RPC changes). FILES: (1) components/auction/EndedState.jsx — PhysicalSettlement rewritten into ROLE-SPECIFIC sectioned panels: BUYER sees 'YOUR PURCHASE' = PAYMENT (Payment secured chip + winning bid + bid-tx link) + DELIVERY (ProvideAddress reused in-room when FUNDED; read-only progress rail Awaiting->Shipped->In transit->Out for delivery->Delivered + carrier/tracking/timestamps) + RECEIPT (ConfirmationWindow reused in-room with REAL Confirm Receipt + Open Dispute when DELIVERED+FUNDED) + terminal states (Receipt confirmed / Refunded / Disputed). SELLER sees 'YOUR SALE' = SALE (winning bid + buyer wallet + payment state) + SHIPPING (ShipForm reused when shipping row absent/PENDING/LABEL_CREATED; TrackingButtons reused pre-DELIVERED; delivered read-only note) + SETTLEMENT (FUNDED->'Waiting for buyer confirmation'/'Delivered — 48h window'; RELEASED->'Settlement ready' + Settle on-chain; chain-aware statusOf===4 -> 'Settlement complete' + settle-tx-link; REFUNDED note). Third parties: null. (2) components/profile/MyActivity.jsx — ProvideAddress/ConfirmationWindow/ShipForm/TrackingButtons now exported (same code, zero duplication). BUG FIXED DURING TEST: ShipForm didn't render when a PENDING shipping row existed (buyer address sent first) — condition widened to PENDING/LABEL_CREATED. E2E ON REAL AUCTION b052af32 (PHYSICAL, sellera seller, sellerb buyer, REAL MON): FUNDED-at-close (migration v2) -> BUYER: panel + Payment secured + address sent in-room + delivery rail + Confirm Receipt + Open Dispute VISIBLE at DELIVERED -> confirm -> 'Receipt confirmed — purchase complete'; seller controls ALL 0 (settle/mark-transit/mark-delivered/ship-form/seller-sections). SELLER: Your Sale + ShipForm -> SiCepat SCP99112233 -> Mark In Transit -> Mark Delivered ALL IN-ROOM -> 'Delivered — waiting for buyer confirmation (48h window)' -> after buyer confirm: 'Settlement ready' + Settle on-chain -> Approve -> 'Settlement complete' (statusOf=4 chain-aware), button gone; buyer controls ALL 0 (confirm/dispute). THIRD PARTY (sellerc): zero action surfaces, winner banner intact. Lint clean x2, build PASS (running at log time). PHASE 7.4 CLOSED."
+
+## restoration_verification:
+##   - task: "Workspace recovery and runtime boot"
+##     implemented: true
+##     working: true
+##     file: "/app/frontend/.env, /app/backend/.env, /app/contracts/bidzone/.env, /app/memory/test_credentials.md"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: false
+##     status_history:
+##       - working: true
+##         agent: "main"
+##         comment: "Restored tracked source from HEAD, recreated documented gitignored runtime files without private keys, installed frontend dependencies with yarn --ignore-engines, restarted services, and verified backend/frontend local HTTP 200. Backend recovery agent PASS 5/5."
+## frontend:
+##   - task: "Phase Polish UI/UX pass"
+##     implemented: true
+##     working: "PARTIAL"
+##     file: "frontend/src/pages/CreateAuction.jsx, frontend/src/components/home/NotificationCenter.jsx, frontend/src/components/auction/EndedState.jsx, frontend/src/components/profile/MyActivity.jsx"
+##     stuck_count: 0
+##     priority: "high"
+##     needs_retesting: true
+##     status_history:
+##       - working: "PARTIAL"
+##         agent: "testing"
+##         comment: "Duration selector and custom controls PASS via browser. Build PASS and changed-file lint PASS. Auction room/countdown/physical role/NFT/mobile runtime checks BLOCKED because the test environment exposed no accessible auction URLs/data; notifications only partially exercised because signed-out landing intentionally uses LandingNav instead of authenticated Header. Optional tracking URL needs the new additive migration applied for persistence; legacy shipping remains backward-compatible via fallback." 
+##       - working: "NA"
+##         agent: "main"
+##         comment: "Implemented duration/countdown polish, in-app notifications, seller-only fee presentation, lifecycle cross-page invalidation, carrier/tracking URL UX, and bid transaction states without changing contracts, engine, fee, Privy, or NFT architecture."
+## test_plan:
+##   current_focus:
+##     - "Frontend browser verification at desktop and 360/390px"
+##     - "Notification bell/read/navigation"
+##     - "Duration custom controls and countdown urgency/extension markers"
+##     - "Physical buyer/seller/third-party role surfaces and cross-page sync"
+##     - "NFT collection/detail regression"
+##   stuck_tasks: []
+##   test_all: false
+##   test_priority: "high_first"
+## agent_communication:
+##   - agent: "main"
+##     message: "Phase Polish UI changes are implemented without contract, engine, fee, Privy, or NFT architecture changes. Frontend build PASS; proceed with browser verification and report any environment-dependent migration requirement for tracking_url."

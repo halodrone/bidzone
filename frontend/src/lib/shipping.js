@@ -129,6 +129,20 @@ const AUCTION_CARD_SELECT = `
     seller:profiles!auctions_seller_id_fkey ( id, username, display_name, wallet_address ),
     auction_items ( media_url, media_type, sort_order )
 `;
+const SHIPPING_SELECT = "auction_id, carrier, tracking_number, tracking_url, tracking_status, shipped_at, delivered_at, ship_by";
+const SHIPPING_SELECT_LEGACY = "auction_id, carrier, tracking_number, tracking_status, shipped_at, delivered_at, ship_by";
+
+async function readShippingForAuctionIds(ids) {
+    if (!ids?.length) return [];
+    const first = await supabase.from("shipping").select(SHIPPING_SELECT).in("auction_id", ids);
+    if (!first.error) return first.data ?? [];
+    if (!/tracking_url|column|schema cache/i.test(first.error.message || "")) throw first.error;
+    const fallback = await supabase.from("shipping").select(SHIPPING_SELECT_LEGACY).in("auction_id", ids);
+    if (fallback.error) throw fallback.error;
+    return fallback.data ?? [];
+}
+
+
 
 export function useMyBids(enabled = true) {
     return useQuery({
@@ -172,13 +186,8 @@ export function useMyPurchases(enabled = true) {
             const rows = escrows ?? [];
             if (rows.length === 0) return [];
             const ids = rows.map((r) => r.auction_id);
-            const { data: shippings } = await supabase
-                .from("shipping")
-                .select(
-                    "auction_id, carrier, tracking_number, tracking_status, shipped_at, delivered_at, ship_by"
-                )
-                .in("auction_id", ids);
-            const shipByAuction = new Map((shippings ?? []).map((s) => [s.auction_id, s]));
+            const shippings = await readShippingForAuctionIds(ids);
+            const shipByAuction = new Map(shippings.map((s) => [s.auction_id, s]));
             return rows.map((e) => ({
                 ...e,
                 shipping: shipByAuction.get(e.auction_id) || null,
@@ -211,15 +220,10 @@ export function useMySales(enabled = true) {
                         "id, auction_id, amount, status, funded_at, ship_by, confirmation_deadline, released_at, refunded_at"
                     )
                     .in("auction_id", ids),
-                supabase
-                    .from("shipping")
-                    .select(
-                        "auction_id, carrier, tracking_number, tracking_status, shipped_at, delivered_at, ship_by"
-                    )
-                    .in("auction_id", ids),
+                readShippingForAuctionIds(ids),
             ]);
             const escByAuction = new Map((escrows.data ?? []).map((e) => [e.auction_id, e]));
-            const shipByAuction = new Map((shippings.data ?? []).map((s) => [s.auction_id, s]));
+            const shipByAuction = new Map((shippings ?? []).map((s) => [s.auction_id, s]));
             return rows.map((a) => ({
                 ...a,
                 escrow: escByAuction.get(a.id) || null,
@@ -248,7 +252,15 @@ export function submitShippingAddress(auctionId, addressId) {
 }
 
 /** Seller marks the shipment SHIPPED (carrier + tracking number required). */
-export function recordShipment(auctionId, carrier, trackingNumber) {
+export function recordShipment(auctionId, carrier, trackingNumber, trackingUrl = null) {
+    if (trackingUrl) {
+        return rpc("seller_record_shipment", {
+            p_auction_id: auctionId,
+            p_carrier: carrier,
+            p_tracking_number: trackingNumber,
+            p_tracking_url: trackingUrl,
+        });
+    }
     return rpc("seller_record_shipment", {
         p_auction_id: auctionId,
         p_carrier: carrier,

@@ -222,6 +222,7 @@ function EscrowStates({ purchase, refetch }) {
                     <p className="rounded-lg bg-black/25 px-3 py-2 text-[11px] text-white/70" data-testid="purchase-tracking">
                         Carrier: <span className="text-white">{s.carrier}</span> · Tracking:{" "}
                         <span className="font-mono text-white">{s.tracking_number}</span>
+                        {s.tracking_url && <a href={s.tracking_url} target="_blank" rel="noreferrer" className="ml-2 inline-flex items-center gap-1 text-[hsl(var(--bz-purple))] underline" data-testid="purchase-tracking-link">Track shipment <ExternalLink className="h-3 w-3" /></a>}
                     </p>
                 )}
             </div>
@@ -286,6 +287,7 @@ function PendingPayment({ purchase }) {
 }
 
 export function ProvideAddress({ purchase, refetch }) {
+    const sync = useLifecycleSync();
     const { data: addresses } = useMyAddresses();
     const [selected, setSelected] = useState(null);
     const [adding, setAdding] = useState(false);
@@ -317,6 +319,7 @@ export function ProvideAddress({ purchase, refetch }) {
             await submitShippingAddress(purchase.auction_id, chosen.id);
             toast.success("Address sent to the seller — fulfillment started");
             refetch();
+            sync(purchase.auction_id);
         } catch (e) {
             toast.error("Could not send address", { description: e.message });
         } finally {
@@ -361,6 +364,7 @@ export function ProvideAddress({ purchase, refetch }) {
 
 export function ConfirmationWindow({ purchase, refetch }) {
     const [reason, setReason] = useState("");
+    const sync = useLifecycleSync();
     const [disputing, setDisputing] = useState(false);
     const [busy, setBusy] = useState(false);
 
@@ -370,6 +374,7 @@ export function ConfirmationWindow({ purchase, refetch }) {
             await confirmReceipt(purchase.auction_id);
             toast.success("Receipt confirmed — escrow released (2.5% platform fee applied at settlement)");
             refetch();
+            sync(purchase.auction_id);
         } catch (e) {
             toast.error("Could not confirm", { description: e.message });
         } finally {
@@ -389,6 +394,7 @@ export function ConfirmationWindow({ purchase, refetch }) {
             setDisputing(false);
             setReason("");
             refetch();
+            sync(purchase.auction_id);
         } catch (e) {
             toast.error("Could not open dispute", { description: e.message });
         } finally {
@@ -634,20 +640,30 @@ function BuyerAddress({ auctionId }) {
 }
 
 export function ShipForm({ auctionId, refetch }) {
+    const sync = useLifecycleSync();
     const [carrier, setCarrier] = useState("");
+    const [customCarrier, setCustomCarrier] = useState("");
     const [tracking, setTracking] = useState("");
+    const [trackingUrl, setTrackingUrl] = useState("");
     const [busy, setBusy] = useState(false);
 
+    const selectedCarrier = carrier === "Other" ? customCarrier : carrier;
+
     async function ship() {
-        if (!carrier.trim() || !tracking.trim()) {
+        if (!selectedCarrier.trim() || !tracking.trim()) {
             toast.error("Carrier and tracking number are required");
+            return;
+        }
+        if (trackingUrl.trim() && !/^https?:\/\//i.test(trackingUrl.trim())) {
+            toast.error("Tracking URL must start with http:// or https://");
             return;
         }
         setBusy(true);
         try {
-            await recordShipment(auctionId, carrier.trim(), tracking.trim());
+            await recordShipment(auctionId, selectedCarrier.trim(), tracking.trim(), trackingUrl.trim() || null);
             toast.success("Marked as shipped");
             refetch();
+            sync(auctionId);
         } catch (e) {
             toast.error("Could not mark as shipped", { description: e.message });
         } finally {
@@ -656,13 +672,19 @@ export function ShipForm({ auctionId, refetch }) {
     }
 
     return (
-        <div className="rounded-xl border border-white/[0.08] bg-black/25 p-3 space-y-2" data-testid="sale-ship-form">
-            <input className="bz-input w-full" data-testid="sale-carrier-input" placeholder="Carrier (e.g. JNE)"
-                value={carrier} maxLength={60} onChange={(e) => setCarrier(e.target.value)} />
-            <input className="bz-input w-full" data-testid="sale-tracking-input" placeholder="Tracking number"
-                value={tracking} maxLength={80} onChange={(e) => setTracking(e.target.value)} />
-            <button type="button" data-testid="sale-ship-submit" onClick={ship} disabled={busy}
-                className="inline-flex items-center gap-1.5 rounded-full bz-btn-primary px-4 py-1.5 text-[11px] font-semibold disabled:opacity-60">
+        <div className="space-y-2 rounded-xl border border-white/[0.08] bg-black/25 p-3" data-testid="sale-ship-form">
+            <select className="bz-input w-full" data-testid="sale-carrier-input" value={carrier} onChange={(e) => setCarrier(e.target.value)}>
+                <option value="">Choose carrier</option>
+                {[
+                    "JNE", "J&T Express", "SiCepat", "Pos Indonesia", "DHL", "FedEx", "UPS", "Cainiao", "Other",
+                ].map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+            {carrier === "Other" && (
+                <input className="bz-input w-full" data-testid="sale-custom-carrier-input" placeholder="Carrier name" value={customCarrier} maxLength={60} onChange={(e) => setCustomCarrier(e.target.value)} />
+            )}
+            <input className="bz-input w-full" data-testid="sale-tracking-input" placeholder="Tracking number" value={tracking} maxLength={80} onChange={(e) => setTracking(e.target.value)} />
+            <input className="bz-input w-full" data-testid="sale-tracking-url-input" type="url" placeholder="Tracking URL (optional)" value={trackingUrl} maxLength={300} onChange={(e) => setTrackingUrl(e.target.value)} />
+            <button type="button" data-testid="sale-ship-submit" onClick={ship} disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bz-btn-primary px-4 py-1.5 text-[11px] font-semibold disabled:opacity-60">
                 {busy && <Loader2 className="h-3 w-3 animate-spin" />}
                 <Truck className="h-3 w-3" /> Mark as Shipped
             </button>
@@ -673,12 +695,14 @@ export function ShipForm({ auctionId, refetch }) {
 export function TrackingButtons({ sale, refetch }) {
     const { session } = useAuth();
     const [busy, setBusy] = useState(false);
+    const sync = useLifecycleSync();
     async function update(status) {
         setBusy(true);
         try {
             await updateTrackingStatus(sale.id, session, status);
             toast.success(`Tracking updated: ${trackingLabel(status)}`);
             refetch();
+            sync(sale.id);
         } catch (e) {
             if (e instanceof BackendUnavailableError) {
                 toast.error("Tracking update unavailable", {

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
     Search,
-    Bell,
     Menu,
     X,
     Sparkles,
@@ -13,6 +12,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { useWallet } from "@/context/WalletContext";
 import { shortenAddress, MONAD } from "@/lib/monad";
+import { NotificationCenter } from "@/components/home/NotificationCenter";
 import { LOGOUT } from "@/constants/testIds";
 import { Copy, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -104,16 +104,7 @@ export function Header() {
 
                 {/* Right cluster */}
                 <div className="ml-auto flex items-center gap-2">
-                    <button
-                        type="button"
-                        data-testid="header-notifications"
-                        aria-label="Notifications — coming soon"
-                        aria-disabled="true"
-                        title="Notifications are coming soon"
-                        className="relative h-10 w-10 rounded-full border border-white/[0.08] bg-[hsl(var(--bz-surface))]/60 flex items-center justify-center opacity-50 cursor-not-allowed"
-                    >
-                        <Bell className="h-4 w-4 text-white/70" />
-                    </button>
+                    <NotificationCenter />
 
                     <WalletButton />
 

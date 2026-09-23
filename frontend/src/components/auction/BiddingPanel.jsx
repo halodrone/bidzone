@@ -147,6 +147,7 @@ function BidForm({ auction, minNext, walletStatus }) {
     const [amount, setAmount] = useState(() => (minNext ? String(minNext) : ""));
     const [phase, setPhase] = useState("idle"); // idle | signing | pending | confirmed
     const [lastTxHash, setLastTxHash] = useState(null);
+    const [errorMessage, setErrorMessage] = useState(null);
     const [addrModalOpen, setAddrModalOpen] = useState(false);
     const submitting = phase !== "idle" && phase !== "confirmed";
     const onchainOn = isOnchainAvailable();
@@ -160,6 +161,7 @@ function BidForm({ auction, minNext, walletStatus }) {
 
     async function placeBid() {
         if (submitting) return;
+        setErrorMessage(null);
         if (isPhysical && !hasAddress) {
             toast.error("Add a shipping address before bidding on physical items.", {
                 description: "Your address stays private — only the seller of an order you win ever sees it.",
@@ -227,6 +229,7 @@ function BidForm({ auction, minNext, walletStatus }) {
             } catch (e) {
                 setPhase("idle");
                 const msg = (e && (e.shortMessage || e.message)) || "Bid failed";
+                setErrorMessage(msg);
                 toast.error("Bid rejected", {
                     description: txHash ? "On-chain call reverted or DB write failed." : msg,
                 });
@@ -267,6 +270,7 @@ function BidForm({ auction, minNext, walletStatus }) {
             } catch (e) {
                 setPhase("idle");
                 const msg = (e && (e.shortMessage || e.message)) || "Bid failed";
+                setErrorMessage(msg);
                 toast.error("Bid rejected", {
                     description: txHash ? "On-chain call reverted or DB write failed." : msg,
                 });
@@ -292,8 +296,10 @@ function BidForm({ auction, minNext, walletStatus }) {
             qc.invalidateQueries({ queryKey: ["auction-bids", auction.id] });
         } catch (e) {
             setPhase("idle");
+            const msg = (e && e.message) || "The auction did not accept this bid.";
+            setErrorMessage(msg);
             toast.error("Bid rejected", {
-                description: (e && e.message) || "The auction did not accept this bid.",
+                description: msg,
             });
         }
     }
@@ -357,6 +363,18 @@ function BidForm({ auction, minNext, walletStatus }) {
                     {phase !== "signing" && phase !== "pending" && "Place Bid"}
                 </button>
             </div>
+            {phase === "confirmed" && (
+                <p data-testid="bid-success-state" className="mt-2 flex items-center gap-1.5 text-[11px] text-[hsl(var(--bz-green))]">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" /> Transaction confirmed — live auction state is refreshing.
+                </p>
+            )}
+            {errorMessage && (
+                <p data-testid="bid-error-state" className="mt-2 rounded-xl border border-[hsl(var(--bz-red)/0.35)] bg-[hsl(var(--bz-red)/0.08)] px-3 py-2 text-[11px] text-white/75">
+                    Bid failed — {errorMessage}
+                </p>
+            )}
+
+
             {isPhysical && (
                 <p
                     data-testid="bid-physical-note"

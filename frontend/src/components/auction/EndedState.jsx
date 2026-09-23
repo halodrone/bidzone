@@ -9,7 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { isOnchainAvailable, settleAuctionOnchain, toExplorerTx, readAuctionStatus } from "@/lib/bidzoneAuction";
 import { isNftAvailable, settleNftAuctionOnchain, readEscrowStatus } from "@/lib/nft";
 import { recordNftEvent } from "@/lib/nftIndex";
-import { trackingLabel } from "@/lib/shipping";
+import { trackingLabel, feeBreakdown } from "@/lib/shipping";
 import { supabase } from "@/lib/supabase";
 import { MONAD } from "@/lib/monad";
 import {
@@ -124,11 +124,15 @@ export function EndedState({ auction }) {
                     </dl>
                     {auction.auction_type === "PHYSICAL" && user?.id === winning.bidder_id ? (
                         <p className="mt-4 text-[11px] text-white/40" data-testid="buyer-banner-completion-note">
-                            Your purchase is complete — payment was secured and released after your confirmation.
+                            Your purchase is complete — payment and delivery status are managed in your purchase panel.
+                        </p>
+                    ) : auction.seller?.id === user?.id ? (
+                        <p className="mt-4 text-[11px] text-white/40" data-testid="seller-banner-fee-note">
+                            Seller settlement: 97.5% to you · 2.5% BIDZONE fee, released after the physical lifecycle completes.
                         </p>
                     ) : (
-                        <p className="mt-4 text-[11px] text-white/40">
-                            Settlement pays 97.5% to the seller and 2.5% to the BIDZONE treasury.
+                        <p className="mt-4 text-[11px] text-white/40" data-testid="third-party-banner-note">
+                            The auction result is recorded. Settlement details are visible to the seller only.
                         </p>
                     )}
                     {auction.auction_type === "NFT" ? (
@@ -348,11 +352,20 @@ function useAuctionEscrowState(auctionId) {
                         .maybeSingle(),
                     supabase
                         .from("shipping")
-                        .select("carrier,tracking_number,tracking_status,shipped_at,delivered_at")
+                        .select("carrier,tracking_number,tracking_url,tracking_status,shipped_at,delivered_at")
                         .eq("auction_id", auctionId)
                         .maybeSingle(),
                 ]);
-                return { escrow: esc.data || null, shipping: shp.data || null };
+                let shipping = shp.data || null;
+                if (shp.error && /tracking_url|column|schema cache/i.test(shp.error.message || "")) {
+                    const fallback = await supabase
+                        .from("shipping")
+                        .select("carrier,tracking_number,tracking_status,shipped_at,delivered_at")
+                        .eq("auction_id", auctionId)
+                        .maybeSingle();
+                    shipping = fallback.data || null;
+                }
+                return { escrow: esc.data || null, shipping };
             } catch {
                 return { escrow: null, shipping: null };
             }
@@ -489,6 +502,7 @@ function PhysicalSettlement({ auction, winning }) {
 
     const escrowStatus = escrow?.status || null;
     const tracking = shipping?.tracking_status || null;
+    const sellerFee = feeBreakdown(winning.amount);
     const purchaseShape = {
         auction_id: auction.id,
         escrow_status: escrowStatus,
@@ -547,6 +561,7 @@ function PhysicalSettlement({ auction, winning }) {
                             {shipping?.carrier && shipping?.tracking_number && (
                                 <p className="rounded-lg bg-black/30 px-3 py-2 text-[11px] text-white/70" data-testid="buyer-tracking-info">
                                     {shipping.carrier} · <span className="font-mono text-white">{shipping.tracking_number}</span>
+                                    {shipping.tracking_url && <a href={shipping.tracking_url} target="_blank" rel="noreferrer" className="ml-2 inline-flex items-center gap-1 text-[hsl(var(--bz-purple))] underline" data-testid="buyer-tracking-link">Track shipment <ExternalLink className="h-3 w-3" /></a>}
                                     {shipping.shipped_at ? ` · shipped ${timeAgo(shipping.shipped_at)}` : ""}
                                 </p>
                             )}
@@ -630,6 +645,11 @@ function PhysicalSettlement({ auction, winning }) {
                     {" · "}
                     Payment {escrowStatus === "PENDING" ? "awaiting confirmation" : "secured in escrow"}
                 </p>
+                <dl className="mt-3 grid grid-cols-3 gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-[10px]" data-testid="physical-seller-fee-breakdown">
+                    <div><dt className="text-white/40">Winning bid</dt><dd className="mt-1 font-semibold text-white">{fmtAmount(winning.amount)} MON</dd></div>
+                    <div><dt className="text-white/40">Seller receives</dt><dd className="mt-1 font-semibold text-white">{sellerFee.received} MON · 97.5%</dd></div>
+                    <div><dt className="text-white/40">BIDZONE fee</dt><dd className="mt-1 font-semibold text-white">{sellerFee.fee} MON · 2.5%</dd></div>
+                </dl>
             </RoleSection>
 
             <RoleSection icon={Truck} title="Shipping" testid="seller-section-shipping">

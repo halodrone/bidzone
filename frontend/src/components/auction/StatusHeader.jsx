@@ -74,9 +74,13 @@ export function StatusHeader({ auction }) {
                         </span>
                     )}
 
-                    <div className="ml-auto inline-flex items-center gap-2 rounded-full bg-black/70 border border-white/10 backdrop-blur px-3 py-1.5">
-                        <Radio className="h-3.5 w-3.5 text-[hsl(var(--bz-purple))]" />
-                        <CountdownTimer endTime={auction.end_time} testId="auction-hero-timer" />
+                    <div className="ml-auto inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-black/70 px-2.5 py-1.5 backdrop-blur sm:px-3">
+                        <Radio className="hidden h-3.5 w-3.5 text-[hsl(var(--bz-purple))] sm:block" />
+                        <CountdownTimer
+                            endTime={auction.end_time}
+                            antiSnipingSeconds={auction.anti_sniping_seconds || 10}
+                            testId="auction-hero-timer"
+                        />
                     </div>
                 </div>
 

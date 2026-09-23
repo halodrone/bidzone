@@ -50,11 +50,12 @@ const CATEGORIES = [
 const CONDITIONS = ["NEW", "LIKE_NEW", "GOOD", "FAIR"];
 
 const DURATIONS = [
-    { label: "30 minutes", hours: 0.5 },
-    { label: "6 hours", hours: 6 },
-    { label: "24 hours", hours: 24 },
-    { label: "3 days", hours: 72 },
-    { label: "7 days", hours: 168 },
+    { label: "1 minute", value: "0.0166666667", helper: "Quick test" },
+    { label: "5 minutes", value: "0.0833333333", helper: "Fast drop" },
+    { label: "10 minutes", value: "0.1666666667", helper: "Short run" },
+    { label: "30 minutes", value: "0.5", helper: "Focused auction" },
+    { label: "1 hour", value: "1", helper: "Recommended" },
+    { label: "Custom", value: "custom", helper: "Set your own pace" },
 ];
 
 const initialForm = {
@@ -65,11 +66,19 @@ const initialForm = {
     auctionType: "PHYSICAL",
     startingBid: "",
     minimumIncrement: "",
-    durationHours: "24",
+    durationHours: "1",
+    durationCustomValue: "30",
+    durationCustomUnit: "minutes",
     antiSniping: "10",
     shippingOrigin: "",
     allowedRegions: ["GLOBAL"],
 };
+
+function resolveDurationHours(form) {
+    if (form.durationHours !== "custom") return Number(form.durationHours);
+    const value = Number(form.durationCustomValue);
+    return form.durationCustomUnit === "hours" ? value : value / 60;
+}
 
 // Phase 7 — destination options for PHYSICAL auctions (public, transparent).
 const REGION_OPTIONS = [
@@ -200,6 +209,14 @@ function CreateForm() {
                 return setError("Select at least one allowed destination");
         }
 
+        const durationHours = resolveDurationHours(form);
+        if (!Number.isFinite(durationHours) || durationHours <= 0) {
+            return setError("Choose a duration longer than zero");
+        }
+        if (form.durationHours === "custom" && form.durationCustomUnit === "minutes" && durationHours < (1 / 60)) {
+            return setError("Custom duration must be at least 1 minute");
+        }
+
         const user = session?.user;
         if (!user) return setError("Sign in required");
 
@@ -209,7 +226,10 @@ function CreateForm() {
             // 1) Create the auction row first (DRAFT) — folder target exists.
             setPhase("creating");
             const start = new Date();
-            const end = new Date(Date.now() + Number(form.durationHours) * 3600 * 1000);
+            // The single end timestamp is shared by Supabase and the on-chain
+            // registration path. The contract remains the source of truth once
+            // the transaction is confirmed; this UI never runs a second timer.
+            const end = new Date(Date.now() + durationHours * 3600 * 1000);
             const { data: auction, error: aErr } = await supabase
                 .from("auctions")
                 .insert({
@@ -545,11 +565,43 @@ function CreateForm() {
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="Duration">
-                        <select className="bz-input w-full sm:w-44" data-testid="create-duration" value={form.durationHours} onChange={set("durationHours")}>
+                        <select
+                            className="bz-input w-full sm:w-52"
+                            data-testid="create-duration"
+                            value={form.durationHours}
+                            onChange={set("durationHours")}
+                        >
                             {DURATIONS.map((d) => (
-                                <option key={d.hours} value={d.hours}>{d.label}</option>
+                                <option key={d.value} value={d.value}>{d.label} · {d.helper}</option>
                             ))}
                         </select>
+                        {form.durationHours === "custom" && (
+                            <div className="mt-2 grid grid-cols-[1fr_auto] gap-2" data-testid="create-duration-custom">
+                                <input
+                                    className="bz-input w-full"
+                                    data-testid="create-duration-custom-value"
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    inputMode="numeric"
+                                    value={form.durationCustomValue}
+                                    onChange={set("durationCustomValue")}
+                                    aria-label="Custom duration value"
+                                    placeholder="30"
+                                />
+                                <select
+                                    className="bz-input w-28"
+                                    data-testid="create-duration-custom-unit"
+                                    value={form.durationCustomUnit}
+                                    onChange={set("durationCustomUnit")}
+                                    aria-label="Custom duration unit"
+                                >
+                                    <option value="minutes">minutes</option>
+                                    <option value="hours">hours</option>
+                                </select>
+                            </div>
+                        )}
+                        <p className="mt-1.5 text-[10px] text-white/40">Short auctions create urgency; the confirmed end time stays authoritative.</p>
                     </Field>
                     <Field label="Anti-sniping window (seconds)">
                         <input
