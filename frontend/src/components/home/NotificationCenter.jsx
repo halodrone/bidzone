@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Check, CheckCheck, ExternalLink, Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -35,6 +35,18 @@ export function NotificationCenter() {
     const navigate = useNavigate();
     const qc = useQueryClient();
     const [open, setOpen] = useState(false);
+    const [dismissed, setDismissed] = useState(() => new Set());
+
+    function dismissItem(item) {
+        setDismissed((prev) => {
+            const next = new Set(prev);
+            next.add(item.id);
+            return next;
+        });
+        // Persist the "seen" state via the existing mark-read path so a
+        // dismissed unread notification never comes back on the next fetch.
+        if (!item.is_read) markRead(item.id);
+    }
 
     const query = useQuery({
         queryKey: ["notifications", user?.id],
@@ -123,13 +135,13 @@ export function NotificationCenter() {
             </button>
 
             {open && (
-                <div data-testid="notification-center" className="absolute right-0 top-12 z-[80] w-[min(360px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-white/[0.1] bg-[hsl(var(--bz-surface))] shadow-2xl shadow-black/50">
+                <div data-testid="notification-center" className="fixed inset-x-3 top-16 z-[80] w-auto sm:absolute sm:inset-auto sm:right-0 sm:top-12 sm:w-[min(360px,calc(100vw-2rem))] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-white/[0.1] bg-[hsl(var(--bz-surface))] shadow-2xl shadow-black/50">
                     <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
-                        <div>
+                        <div className="min-w-0 flex-1 pr-2">
                             <p className="text-sm font-semibold text-white">Notifications</p>
                             <p className="text-[10px] uppercase tracking-widest text-white/40">Live account updates</p>
                         </div>
-                        <button type="button" data-testid="notifications-mark-all" onClick={markAllRead} disabled={!unread} className="inline-flex items-center gap-1 text-[10px] font-semibold text-white/55 transition hover:text-white disabled:opacity-35">
+                        <button type="button" data-testid="notifications-mark-all" onClick={markAllRead} disabled={!unread} className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold text-white/55 transition hover:text-white disabled:opacity-35">
                             <CheckCheck className="h-3.5 w-3.5" /> Mark all read
                         </button>
                     </div>
@@ -141,28 +153,157 @@ export function NotificationCenter() {
                         <div data-testid="notifications-empty" className="px-4 py-10 text-center text-xs text-white/50">You are all caught up.</div>
                     ) : (
                         <ul className="max-h-[min(28rem,70vh)] overflow-y-auto">
-                            {notifications.map((item) => {
-                                const meta = TYPE_META[item.type] || { label: item.type?.replaceAll("_", " ") || "Update", tone: "text-white/70" };
-                                return (
-                                    <li key={item.id}>
-                                        <button type="button" data-testid={`notification-${item.id}`} onClick={() => openNotification(item)} className={`flex w-full items-start gap-3 border-b border-white/[0.05] px-4 py-3 text-left transition hover:bg-white/[0.04] ${item.is_read ? "opacity-60" : "bg-[hsl(var(--bz-purple)/0.06)]"}`}>
-                                            <span className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/20 ${meta.tone}`}>
-                                                {item.is_read ? <Check className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
-                                            </span>
-                                            <span className="min-w-0 flex-1">
-                                                <span className={`block text-[10px] font-bold uppercase tracking-widest ${meta.tone}`}>{meta.label}</span>
-                                                <span className="mt-0.5 block text-xs leading-relaxed text-white/80">{item.message}</span>
-                                                {item.auction?.title && <span className="mt-1 flex items-center gap-1 truncate text-[10px] text-white/40">{item.auction.title} <ExternalLink className="h-2.5 w-2.5 shrink-0" /></span>}
-                                                <span className="mt-1 block text-[10px] text-white/35">{relativeTime(item.created_at)}</span>
-                                            </span>
-                                        </button>
-                                    </li>
-                                );
-                            })}
+                            {notifications
+                                .filter((item) => !dismissed.has(item.id))
+                                .map((item) => {
+                                    const meta = TYPE_META[item.type] || { label: item.type?.replaceAll("_", " ") || "Update", tone: "text-white/70" };
+                                    return (
+                                        <NotificationItem
+                                            key={item.id}
+                                            item={item}
+                                            meta={meta}
+                                            onOpen={() => openNotification(item)}
+                                            onDismiss={() => dismissItem(item)}
+                                        />
+                                    );
+                                })}
                         </ul>
                     )}
                 </div>
             )}
         </div>
+    );
+}
+
+/**
+ * Individual row with mobile swipe gestures.
+ *   • Swipe LEFT (fingers move right→left, dx<0)  → dismiss
+ *   • Swipe RIGHT (fingers move left→right, dx>0) → open (same handler as tap)
+ * Vertical scrolling is preserved: while the pointer is moving mostly
+ * vertically, we release the row and let the parent <ul> scroll normally.
+ * The horizontal listener uses pointer events, is scoped to the row only,
+ * and requires a threshold (SWIPE_THRESHOLD_PX) so tiny finger movements
+ * never fire an action.
+ */
+const SWIPE_THRESHOLD_PX = 60;
+const SWIPE_LOCK_PX = 10;
+
+function NotificationItem({ item, meta, onOpen, onDismiss }) {
+    const [dragX, setDragX] = useState(0);
+    const [animatingOut, setAnimatingOut] = useState(null); // 'left' | 'right' | null
+    const stateRef = useRef({ startX: 0, startY: 0, locked: null }); // locked: 'h'|'v'|null
+
+    function onPointerDown(e) {
+        // Only primary button / first touch.
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        stateRef.current = { startX: e.clientX, startY: e.clientY, locked: null };
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* non-fatal */ }
+    }
+
+    function onPointerMove(e) {
+        const s = stateRef.current;
+        if (s.startX === 0 && s.startY === 0) return;
+        const dx = e.clientX - s.startX;
+        const dy = e.clientY - s.startY;
+
+        // Lock axis once movement clearly exceeds the neutral zone.
+        if (!s.locked) {
+            if (Math.abs(dx) > SWIPE_LOCK_PX || Math.abs(dy) > SWIPE_LOCK_PX) {
+                s.locked = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+            }
+        }
+        if (s.locked === "h") {
+            // Prevent the underlying scroll from taking over horizontal swipes.
+            e.preventDefault();
+            setDragX(dx);
+        }
+    }
+
+    function endGesture(commit) {
+        stateRef.current = { startX: 0, startY: 0, locked: null };
+        if (commit === "dismiss") {
+            setAnimatingOut("left");
+            setTimeout(() => onDismiss(), 180);
+            return;
+        }
+        if (commit === "open") {
+            setAnimatingOut("right");
+            setTimeout(() => onOpen(), 120);
+            return;
+        }
+        setDragX(0);
+    }
+
+    function onPointerUp() {
+        const dx = dragX;
+        if (dx <= -SWIPE_THRESHOLD_PX) endGesture("dismiss");
+        else if (dx >= SWIPE_THRESHOLD_PX) endGesture("open");
+        else endGesture(null);
+    }
+
+    function onPointerCancel() {
+        endGesture(null);
+    }
+
+    // Sliding transform + hint background revealed behind the row.
+    const showing =
+        animatingOut === "left"
+            ? -window.innerWidth
+            : animatingOut === "right"
+            ? window.innerWidth
+            : dragX;
+    const dragging = stateRef.current.locked === "h" || animatingOut !== null;
+    const rowStyle = {
+        transform: `translateX(${showing}px)`,
+        transition: dragging && animatingOut === null ? "none" : "transform 180ms ease-out",
+        touchAction: "pan-y", // let the browser handle vertical scroll; we own horizontal
+    };
+    // Hint chip on the side the user is swiping toward.
+    const hint = dragX <= -SWIPE_LOCK_PX ? "left" : dragX >= SWIPE_LOCK_PX ? "right" : null;
+
+    return (
+        <li className="relative overflow-hidden">
+            {hint === "left" && (
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 right-0 flex w-24 items-center justify-end pr-4 text-[10px] font-semibold uppercase tracking-widest text-white/60"
+                >
+                    Dismiss
+                </span>
+            )}
+            {hint === "right" && (
+                <span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 left-0 flex w-24 items-center justify-start pl-4 text-[10px] font-semibold uppercase tracking-widest text-[hsl(var(--bz-purple))]"
+                >
+                    Open →
+                </span>
+            )}
+            <button
+                type="button"
+                data-testid={`notification-${item.id}`}
+                onClick={onOpen}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerCancel}
+                style={rowStyle}
+                className={`relative flex w-full items-start gap-3 border-b border-white/[0.05] px-4 py-3 text-left transition-colors hover:bg-white/[0.04] ${item.is_read ? "opacity-60" : "bg-[hsl(var(--bz-purple)/0.06)]"}`}
+            >
+                <span className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-black/20 ${meta.tone}`}>
+                    {item.is_read ? <Check className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className={`block text-[10px] font-bold uppercase tracking-widest ${meta.tone}`}>{meta.label}</span>
+                    <span className="mt-0.5 block break-words text-xs leading-relaxed text-white/80">{item.message}</span>
+                    {item.auction?.title && (
+                        <span className="mt-1 flex items-center gap-1 truncate text-[10px] text-white/40">
+                            {item.auction.title} <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                        </span>
+                    )}
+                    <span className="mt-1 block text-[10px] text-white/35">{relativeTime(item.created_at)}</span>
+                </span>
+            </button>
+        </li>
     );
 }
