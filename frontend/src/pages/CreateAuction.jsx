@@ -509,7 +509,7 @@ function CreateForm() {
                         placeholder="Condition, provenance, anything bidders should know"
                     />
                 </Field>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className={`grid grid-cols-1 gap-4 ${form.auctionType === "NFT" ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
                     <Field label="Category">
                         <select className="bz-input w-full" data-testid="create-category" value={form.category} onChange={set("category")}>
                             {CATEGORIES.map((c) => (
@@ -517,13 +517,15 @@ function CreateForm() {
                             ))}
                         </select>
                     </Field>
-                    <Field label="Condition">
-                        <select className="bz-input w-full" data-testid="create-condition" value={form.condition} onChange={set("condition")}>
-                            {CONDITIONS.map((c) => (
-                                <option key={c} value={c}>{c.replace("_", " ")}</option>
-                            ))}
-                        </select>
-                    </Field>
+                    {form.auctionType !== "NFT" && (
+                        <Field label="Condition">
+                            <select className="bz-input w-full" data-testid="create-condition" value={form.condition} onChange={set("condition")}>
+                                {CONDITIONS.map((c) => (
+                                    <option key={c} value={c}>{c.replace("_", " ")}</option>
+                                ))}
+                            </select>
+                        </Field>
+                    )}
                     <Field label="Type">
                         <select
                             className="bz-input w-full"
@@ -620,16 +622,6 @@ function CreateForm() {
                             </div>
                         )}
                         <p className="mt-1.5 text-[10px] text-white/40">Short auctions create urgency; the confirmed end time stays authoritative.</p>
-                    </Field>
-                    <Field label="Anti-sniping window (seconds)">
-                        <input
-                            className="bz-input w-full sm:w-40"
-                            data-testid="create-anti-sniping"
-                            value={form.antiSniping}
-                            onChange={set("antiSniping")}
-                            inputMode="numeric"
-                            placeholder="10"
-                        />
                     </Field>
                 </div>
 

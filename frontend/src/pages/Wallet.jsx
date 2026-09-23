@@ -143,7 +143,7 @@ export default function Wallet() {
                 <Header />
                 <main className="max-w-2xl mx-auto px-4 py-16">
                     <div className="bz-card p-8 text-center space-y-4">
-                        <h1 className="text-2xl font-semibold text-white">Wallet</h1>
+                        <h1 className="text-2xl font-semibold text-white">My Wallet</h1>
                         <p className="text-white/60">Sign in to view your embedded wallet and withdraw MON.</p>
                         <button
                             type="button"
@@ -169,8 +169,7 @@ export default function Wallet() {
                 </div>
 
                 <div>
-                    <h1 data-testid="wallet-title" className="text-3xl font-semibold text-white">Wallet</h1>
-                    <p className="text-white/55 mt-1 text-sm">Your BIDZONE embedded wallet — withdraw MON to an external Monad address.</p>
+                    <h1 data-testid="wallet-title" className="text-3xl font-semibold text-white">My Wallet</h1>
                 </div>
 
                 {/* Embedded wallet card */}
@@ -213,9 +212,7 @@ export default function Wallet() {
                     data-testid="wallet-network-warning"
                     className="rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3 text-sm text-amber-200/90"
                 >
-                    <strong className="font-semibold">Monad Network Only.</strong> This wallet lives on Monad
-                    (chain {MONAD.chainId}). Send only to Monad-compatible EVM addresses — transfers to
-                    other networks or exchanges without Monad support can result in permanent loss.
+                    <strong className="font-semibold">Monad Network Only.</strong> Transfers to other networks or exchanges without Monad support can result in permanent loss.
                 </div>
 
                 {/* Withdraw flow */}

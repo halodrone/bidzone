@@ -61,9 +61,6 @@ export function MyActivity({ initialTab = "purchases" } = {}) {
             <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h2 className="text-lg font-semibold text-white">My Activity</h2>
-                    <p className="text-xs text-white/45 mt-0.5">
-                        Bids, purchases and sales — live from the existing escrow & shipping lifecycle.
-                    </p>
                 </div>
                 <div className="inline-flex items-center gap-1 rounded-full bg-white/[0.03] border border-white/[0.06] p-1 self-start">
                     <TabBtn testId="activity-tab-purchases" active={tab === "purchases"} onClick={() => setTab("purchases")}>

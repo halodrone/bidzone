@@ -1,0 +1,105 @@
+{
+  "project_name": "BIDZONE — Final Polish Phase",
+  "visual_identity": {
+    "theme": "Dark Cyber-Deluxe",
+    "theme_description": "Dark charcoal near-black background (#0a0a0c), neon purple primary accent (#9b7cff), high contrast white text, sleek glassmorphic surfaces, subtle grid patterns and energetic pulse accents.",
+    "preserve_identity": true
+  },
+  "typography": {
+    "heading_font": "Unbounded, ui-sans-serif, system-ui, sans-serif",
+    "body_font": "Manrope, ui-sans-serif, system-ui, sans-serif",
+    "h1_hero": "text-3xl sm:text-5xl lg:text-6xl font-bold tracking-tight font-display",
+    "h2_section": "text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight font-display",
+    "h3_card": "text-lg sm:text-xl font-medium tracking-tight font-display",
+    "body_text": "text-sm sm:text-base text-zinc-300 font-sans",
+    "label_overline": "text-xs font-semibold uppercase tracking-widest text-purple-400"
+  },
+  "colors": {
+    "background": {
+      "base": "hsl(240 8% 4%)",
+      "hex": "#0a0a0c",
+      "elevated": "hsl(240 9% 7%)",
+      "hex_elevated": "#10101a",
+      "surface": "hsl(240 8% 9%)",
+      "hex_surface": "#14141a",
+      "surface_2": "hsl(240 6% 13%)",
+      "hex_surface_2": "#1e1e24"
+    },
+    "borders": {
+      "default": "hsl(240 6% 18%)",
+      "hex": "#2b2b34",
+      "strong": "hsl(240 5% 24%)"
+    },
+    "text": {
+      "primary": "hsl(240 20% 96%)",
+      "hex_primary": "#f2f2f7",
+      "muted": "hsl(240 5% 62%)",
+      "hex_muted": "#9797a3",
+      "dim": "hsl(240 4% 45%)"
+    },
+    "accents": {
+      "primary_purple": "hsl(262 83% 68%)",
+      "hex_purple": "#9b7cff",
+      "purple_strong": "hsl(262 80% 60%)",
+      "live_red": "hsl(350 90% 60%)",
+      "hex_red": "#ff3d5a",
+      "success_green": "hsl(152 60% 50%)"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "bz-glass (backdrop-blur-xl bg-[#14141a]/70 border border-[#2b2b34]/90)",
+    "card_style": "bz-card (bg-gradient-to-b from-[#14141a]/95 to-[#10101a]/95 border border-[#2b2b34] rounded-2xl transition-all duration-200 hover:border-[#9b7cff]/55 hover:-translate-y-0.5 hover:shadow-[0_20px_60px_-20px_rgba(155,124,255,0.35)])",
+    "buttons": {
+      "primary": "bz-btn-primary (bg-gradient-to-br from-[#9b7cff] to-[#7c53f0] text-white shadow-[0_8px_32px_-8px_rgba(155,124,255,0.55)] hover:-translate-y-0.5 active:translate-y-0)",
+      "secondary": "bz-btn-secondary (bg-[#14141a]/80 text-[#f2f2f7] border border-[#2b2b34] hover:border-[#9b7cff]/60 hover:bg-[#1e1e24])"
+    },
+    "inputs": "bz-input (bg-[#0a0a0c]/80 border border-[#2b2b34] rounded-xl text-white px-3.5 py-2.5 text-sm focus:border-[#9b7cff]/70 focus:ring-2 focus:ring-[#9b7cff]/20)",
+    "ambient_background": "bz-ambient (subtle grid + radial purple glow at top center)"
+  },
+  "grids_and_responsive": {
+    "container_padding": "px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto",
+    "mobile_viewports": {
+      "target_widths": ["360px", "390px"],
+      "grid_mobile": "grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+      "padding_mobile": "px-3 sm:px-4",
+      "card_padding_mobile": "p-3.5 sm:p-5"
+    }
+  },
+  "specific_polish_requirements": [
+    {
+      "task": "Keyword Search",
+      "requirement": "Functional keyword search filtering live auctions/items, with clear 'No results found.' message and option to clear filter when empty."
+    },
+    {
+      "task": "Home Category Showcase",
+      "requirement": "Rename label 'Collectibles' to 'NFT' and remove any disclaimers associated with Collectibles."
+    },
+    {
+      "task": "Create Auction Form",
+      "requirement": "Hide Condition field when NFT auction type is selected, while retaining Condition input for non-NFT auction types. Remove user-facing Anti-Sniping Window input field while preserving internal automatic +10s extension."
+    },
+    {
+      "task": "Profile Page",
+      "requirement": "Clean up Profile labels and text exact copy."
+    },
+    {
+      "task": "Collection Mobile Layout",
+      "requirement": "Fix responsive grid layout specifically at 360px and 390px viewport widths to avoid horizontal overflow or squished content."
+    },
+    {
+      "task": "Wallet Page",
+      "requirement": "Clean Wallet labels, subtitle, and warning box exact text."
+    }
+  ],
+  "accessibility_and_testing": {
+    "data_testid": "Mandatory on all interactive and key data display elements (buttons, inputs, status badges, tabs, cards, search input)",
+    "data_testid_convention": "kebab-case role-based format (e.g. search-input, auction-card-1, nft-tab-button)",
+    "contrast": "Ensure minimum 4.5:1 WCAG AA text contrast against dark backgrounds."
+  },
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "Preserve BIDZONE's existing visual identity (dark charcoal near-black background, neon purple accents, Unbounded display font, glassmorphism cards).",
+    "Do not alter smart contracts, NFT ownership logic, ownerOf, safeTransferFrom, embedded wallet, database, backend, bidding, auction lifecycle, escrow, shipping, auth, admin, notifications, or RLS.",
+    "Add explicit data-testid attributes to all new or edited interactive elements.",
+    "Ensure header/navigation remains visible with proper backdrop blur and z-index (z-50)."
+  ]
+}

@@ -21,6 +21,7 @@ export function LiveAuctionsSection() {
     const [searchParams, setSearchParams] = useSearchParams();
     const tabParam = searchParams.get("tab");
     const category = searchParams.get("category") || "";
+    const search = searchParams.get("search") || "";
     const [filter, setFilter] = useState(() =>
         VALID_TABS.has(tabParam) ? tabParam : "live"
     );
@@ -32,7 +33,7 @@ export function LiveAuctionsSection() {
         if (VALID_TABS.has(tabParam)) setFilter(tabParam);
     }, [tabParam]);
 
-    const { data, isLoading, isError } = useLiveAuctions(filter, 12, category);
+    const { data, isLoading, isError } = useLiveAuctions(filter, 12, category, search);
     const auctions = data ?? [];
     const categoryLabel = CATEGORIES.find((c) => c.slug === category)?.label;
 
@@ -112,7 +113,14 @@ export function LiveAuctionsSection() {
                 ) : isError ? (
                     <ErrorState />
                 ) : auctions.length === 0 ? (
-                    <EmptyState variant={filter} configured={isSupabaseConfigured} />
+                    search ? (
+                        <div data-testid="search-empty" className="mx-auto max-w-md rounded-2xl border border-white/[0.08] bg-white/[0.02] p-8 text-center">
+                            <h3 className="font-display text-lg font-semibold">No results found.</h3>
+                            <p className="mt-2 text-sm text-white/50">Try a different keyword.</p>
+                        </div>
+                    ) : (
+                        <EmptyState variant={filter} configured={isSupabaseConfigured} />
+                    )
                 ) : (
                     <ul
                         data-testid="live-auctions-grid"

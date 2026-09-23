@@ -24,6 +24,10 @@ export const CATEGORIES = [
     { slug: "others",        label: "Others",        icon: LayoutGrid },
 ];
 
+const HOME_CATEGORIES = CATEGORIES.map((category) =>
+    category.slug === "collectibles" ? { ...category, label: "NFT" } : category
+);
+
 export function CategorySection() {
     return (
         <section
@@ -44,7 +48,7 @@ export function CategorySection() {
 
             {/* Desktop grid */}
             <ul className="hidden md:grid md:grid-cols-3 lg:grid-cols-9 gap-3">
-                {CATEGORIES.map((c) => (
+                {HOME_CATEGORIES.map((c) => (
                     <li key={c.slug}>
                         <CategoryItem {...c} />
                     </li>
@@ -53,7 +57,7 @@ export function CategorySection() {
 
             {/* Mobile horizontal scroll */}
             <ul className="md:hidden bz-scroll-x -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2">
-                {CATEGORIES.map((c) => (
+                {HOME_CATEGORIES.map((c) => (
                     <li key={c.slug} className="snap-start shrink-0 w-[130px]">
                         <CategoryItem {...c} />
                     </li>

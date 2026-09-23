@@ -149,7 +149,7 @@ export function MyCollection() {
     }
 
     return (
-        <div data-testid="my-collection">
+        <div data-testid="my-collection" className="min-w-0">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-white/50">
                     NFTs owned by your embedded wallet — verified live on-chain (ownerOf).{" "}
@@ -176,7 +176,7 @@ export function MyCollection() {
                     <p className="mt-1 text-xs text-white/45">Receive an NFT from an external wallet, mint a demo asset, or win an NFT auction.</p>
                 </div>
             ) : (
-                <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="collection-grid">
+                <ul className="mt-4 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="collection-grid">
                     {tokens.map((t) => (
                         <CollectionCard key={`${t.nftContract}:${t.tokenId}`} token={t} onOpen={() => setDetail({ token: t, sendOpen: false })} />
                     ))}
@@ -232,7 +232,7 @@ function CollectionCard({ token, onOpen }) {
     }[token.status];
 
     return (
-        <li className="group rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 transition hover:border-[hsl(var(--bz-purple)/0.4)]" data-testid="collection-card">
+        <li className="group min-w-0 max-w-full rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3 transition hover:border-[hsl(var(--bz-purple)/0.4)]" data-testid="collection-card">
             <button type="button" onClick={onOpen} data-testid="collection-open-detail" className="block w-full text-left">
                 <div className="relative overflow-hidden rounded-xl border border-white/[0.06] bg-black/40">
                     {meta?.image ? (

@@ -158,11 +158,6 @@ export function HeroVisual() {
                     </div>
                 ))}
             </div>
-
-            {/* Category showcase caption (clearly decorative) */}
-            <p className="mt-6 text-center text-[11px] uppercase tracking-[0.24em] text-white/40">
-                Categories showcase · not live auction data
-            </p>
         </div>
     );
 }

@@ -15,9 +15,9 @@ import { resolveMediaUrls } from "@/lib/storage";
  * so the Home page renders its polished empty state.
  * We never fabricate auction rows.
  */
-export function useLiveAuctions(filter = "live", limit = 12, category = "") {
+export function useLiveAuctions(filter = "live", limit = 12, category = "", search = "") {
     return useQuery({
-        queryKey: ["home-auctions", filter, limit, category],
+        queryKey: ["home-auctions", filter, limit, category, search],
         enabled: isSupabaseConfigured,
         staleTime: 15_000,
         refetchInterval: 30_000,
@@ -28,7 +28,7 @@ export function useLiveAuctions(filter = "live", limit = 12, category = "") {
                 .from("auctions")
                 .select(
                     `
-                    id, title, category, condition, auction_type, status,
+                    id, title, description, category, condition, auction_type, status,
                     starting_bid, current_bid, minimum_increment, end_time,
                     seller:profiles!auctions_seller_id_fkey (
                         id, username, display_name, avatar_url, reputation_score
@@ -39,8 +39,9 @@ export function useLiveAuctions(filter = "live", limit = 12, category = "") {
                 .limit(limit);
 
             let q = base;
-            // Optional category filter (used by the category cards on Home).
             if (category) q = q.eq("category", category);
+            const keyword = search.trim().slice(0, 80).replace(/[\\%_(),]/g, " ").replace(/\s+/g, " ");
+            if (keyword) q = q.or(`title.ilike.%${keyword}%,description.ilike.%${keyword}%,category.ilike.%${keyword}%`);
             if (filter === "live") {
                 q = q.eq("status", "LIVE").order("end_time", { ascending: true });
             } else if (filter === "ending-soon") {

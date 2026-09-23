@@ -135,7 +135,6 @@ export default function Profile() {
 
                 <div>
                     <h1 data-testid="profile-title" className="text-3xl font-semibold text-white">Profile</h1>
-                    <p className="text-white/55 mt-1 text-sm">Account, embedded wallet and security overview.</p>
                 </div>
 
                 {/* Google Account */}
@@ -178,7 +177,7 @@ export default function Profile() {
                 {/* Embedded Wallet */}
                 <section data-testid="profile-wallet-card" className="bz-card p-5 space-y-3">
                     <div className="flex items-center justify-between gap-3">
-                        <h2 className="text-lg font-semibold text-white">Embedded Wallet</h2>
+                        <h2 className="text-lg font-semibold text-white">My Wallet</h2>
                         <span
                             data-testid="profile-wallet-status"
                             className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] border ${
@@ -238,17 +237,14 @@ export default function Profile() {
 
                 {/* Wallet / deposit / withdraw */}
                 <section data-testid="profile-balance-card" className="bz-card p-5 space-y-3">
-                    <h2 className="text-lg font-semibold text-white">Wallet</h2>
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-white/50 text-sm">Current balance</span>
+                        <span className="text-white/50 text-sm">Balance</span>
                         <span data-testid="profile-balance" className="text-white font-semibold">
                             {balance != null ? balance : "—"}
                         </span>
                     </div>
                     <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-xs text-amber-200/90">
-                        <strong className="font-semibold">Deposits — Monad Network Only.</strong> Send MON only to
-                        your embedded wallet address shown above, on the Monad network. Deposits from other
-                        networks cannot be recovered.
+                        Monad Network Only
                     </div>
                     <div className="flex flex-wrap gap-2">
                         <Link
@@ -317,11 +313,6 @@ export default function Profile() {
                             ))}
                         </div>
                     )}
-                    <p className="text-[10px] text-white/35 leading-relaxed">
-                        History covers withdrawals signed on this device. A cross-device, server-side ledger
-                        requires privileged database access and is intentionally not implemented to keep RLS
-                        strict.
-                    </p>
                 </section>
 
                 {/* Phase 7 — MY ACTIVITY: bids, purchases (fulfillment) and sales */}

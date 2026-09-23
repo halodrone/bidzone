@@ -35,6 +35,18 @@ const NAV = [
 
 export function Header() {
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get("search") || "");
+    const navigate = useNavigate();
+
+    function submitSearch(event) {
+        event.preventDefault();
+        const keyword = search.trim();
+        const params = new URLSearchParams();
+        params.set("tab", "all");
+        if (keyword) params.set("search", keyword);
+        navigate({ pathname: "/", search: `?${params.toString()}`, hash: "#live-auctions" });
+        setMobileOpen(false);
+    }
 
     return (
         <>
@@ -66,8 +78,7 @@ export function Header() {
                     </span>
                 </Link>
 
-                {/* Center search (desktop) */}
-                <div className="hidden lg:flex flex-1 max-w-xl mx-4">
+                <form onSubmit={submitSearch} className="hidden lg:flex flex-1 max-w-xl mx-4">
                     <label
                         htmlFor="bz-search"
                         className="group relative flex w-full items-center"
@@ -77,13 +88,14 @@ export function Header() {
                             id="bz-search"
                             data-testid="header-search-input"
                             type="search"
-                            disabled
-                            title="Search is coming soon"
-                            placeholder="Search — coming soon"
-                            className="w-full h-11 rounded-full bg-[hsl(var(--bz-surface))]/70 border border-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-white/40 outline-none cursor-not-allowed"
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Search auctions"
+                            aria-label="Search auctions"
+                            className="w-full h-11 rounded-full bg-[hsl(var(--bz-surface))]/70 border border-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-white/40 outline-none focus:border-[hsl(var(--bz-purple)/0.55)]"
                         />
                     </label>
-                </div>
+                </form>
 
                 {/* Nav (desktop) */}
                 <nav
@@ -120,21 +132,21 @@ export function Header() {
                 </div>
             </div>
 
-            {/* Search bar (mobile — under header) */}
-            <div className="lg:hidden px-4 pb-3">
+            <form onSubmit={submitSearch} className="lg:hidden px-4 pb-3">
                 <label htmlFor="bz-search-m" className="group relative flex w-full items-center">
-                    <Search className="absolute left-4 h-4 w-4 text-white/40" />
+                    <Search className="absolute left-4 h-4 w-4 text-white/40 group-focus-within:text-[hsl(var(--bz-purple))] transition-colors" />
                     <input
                         id="bz-search-m"
                         data-testid="header-search-input-mobile"
                         type="search"
-                        disabled
-                        title="Search is coming soon"
-                        placeholder="Search — coming soon"
-                        className="w-full h-11 rounded-full bg-[hsl(var(--bz-surface))]/70 border border-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-white/40 outline-none cursor-not-allowed"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder="Search auctions"
+                        aria-label="Search auctions"
+                        className="w-full h-11 rounded-full bg-[hsl(var(--bz-surface))]/70 border border-white/[0.08] pl-11 pr-4 text-sm text-white placeholder:text-white/40 outline-none focus:border-[hsl(var(--bz-purple)/0.55)]"
                     />
                 </label>
-            </div>
+            </form>
 
         </header>
 
@@ -439,7 +451,7 @@ function MobileNav({ onClose }) {
                                 data-testid="mobile-nav-wallet"
                                 className={drawerLinkClass}
                             >
-                                <span className="text-sm font-medium">Wallet</span>
+                                <span className="text-sm font-medium">My Wallet</span>
                                 <ChevronRight className="h-4 w-4 text-white/30" />
                             </Link>
                         </>
