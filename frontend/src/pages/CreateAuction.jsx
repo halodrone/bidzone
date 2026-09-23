@@ -533,12 +533,30 @@ function CreateForm() {
                             disabled={Boolean(auctionNftParam)}
                         >
                             <option value="PHYSICAL">Physical</option>
-                            <option value="NFT" disabled={!auctionNftParam}>
+                            <option value="NFT">
                                 {auctionNftParam ? "NFT (on-chain) — from your collection" : "NFT — start from My Collection"}
                             </option>
                             <option value="DIGITAL_NON_NFT" disabled>Digital (non-NFT) — Coming Soon</option>
-                            <option value="DIGITAL">Digital</option>
                         </select>
+                        {form.auctionType === "NFT" && !auctionNftParam && (
+                            <div
+                                data-testid="create-nft-hint"
+                                className="mt-2 rounded-xl border border-[hsl(var(--bz-purple)/0.35)] bg-[hsl(var(--bz-purple)/0.08)] p-3 text-[11px] leading-relaxed text-white/75"
+                            >
+                                NFT auctions escrow an owned ERC-721 token from your wallet.
+                                Open <span className="font-semibold text-white">My Collection</span>, choose an NFT and tap
+                                <span className="font-semibold text-white"> Auction This NFT</span> to return here with the token pre-loaded.
+                                <div className="mt-2">
+                                    <Link
+                                        to="/profile?tab=collection"
+                                        data-testid="create-nft-open-collection"
+                                        className="inline-flex items-center gap-1.5 rounded-full bz-btn-primary px-4 py-1.5 text-[11px] font-semibold"
+                                    >
+                                        Open My Collection →
+                                    </Link>
+                                </div>
+                            </div>
+                        )}
                     </Field>
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
