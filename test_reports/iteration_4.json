@@ -1,0 +1,37 @@
+{
+  "summary": "Verified all BIDZONE FINAL POLISH UI changes via live Playwright on the preview URL, authenticated as Seller A (sellera@bztest.dev) using a Supabase password-grant session. Every requested item passes on desktop (1400x900), mobile 360px and mobile 390px. No horizontal overflow anywhere. No unrelated systems were touched.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "tests_executed": [
+    {"name": "Desktop Home search enabled + keyword flow", "result": "PASS", "details": "[data-testid=header-search-input] has no disabled attr, placeholder='Search auctions' (no 'Coming Soon'). Submitting 'Rolex' navigates to /?tab=all&search=Rolex#live-auctions and [data-testid=search-empty] renders with exact text 'No results found.' plus 'Try a different keyword.'"},
+    {"name": "Category showcase label NFT + disclaimer removed", "result": "PASS", "details": "[data-testid=category-collectibles] renders visible label 'NFT' (both desktop grid and mobile horizontal scroll instances). Underlying slug is still 'collectibles' (href=/?category=collectibles&tab=all#live-auctions), so CATEGORIES data preserved. Full body HTML contains no 'not live auction data' string."},
+    {"name": "Mobile 360 home", "result": "PASS", "details": "home-hero mounted, header-search-input-mobile visible+enabled, submitting 'Rolex' triggers search-empty. scrollWidth==clientWidth==360 both before and after submit."},
+    {"name": "Mobile 390 home", "result": "PASS", "details": "Same as 360: search visible/enabled, no horizontal overflow (scrollWidth==clientWidth==390) before and after keyword submit; search-empty renders."},
+    {"name": "Create Auction default Physical", "result": "PASS", "details": "Authed as Seller A. [data-testid=create-condition] present (1), [data-testid=create-anti-sniping] absent (0), [data-testid=create-duration] present."},
+    {"name": "Create Auction switch to NFT hides Condition", "result": "PASS", "details": "After selectOption('create-type','NFT'): create-condition count=0, grid collapses to 2-col (sm:grid-cols-2), create-duration still present, create-anti-sniping still absent."},
+    {"name": "Profile copy cleanup", "result": "PASS", "details": "profile-title='Profile' with NO subtitle line under it. profile-wallet-card heading 'My Wallet' present. profile-balance-card contains 'Balance' label + exact 'Monad Network Only' amber notice (no 'Current balance', no standalone 'Wallet' h2 inside balance card). No long withdrawal history explanation, no My Activity lifecycle subtitle beneath the 'My Activity' h2."},
+    {"name": "Profile mobile 360/390 overflow", "result": "PASS", "details": "scrollWidth==clientWidth at both viewports."},
+    {"name": "Wallet page title + warning", "result": "PASS", "details": "wallet-title text is exactly 'My Wallet'. Embedded-wallet subtitle absent. wallet-network-warning text: 'Monad Network Only. Transfers to other networks or exchanges without Monad support can result in permanent loss.' No chain-id sentence."},
+    {"name": "Wallet mobile 360/390 overflow", "result": "PASS", "details": "scrollWidth==clientWidth at both viewports."},
+    {"name": "Collection mobile 360/390 overflow", "result": "PASS", "details": "/profile?tab=collection at both 360 and 390 shows scrollWidth==clientWidth. Grid uses min-w-0 + grid-cols-1 sm:grid-cols-2 so cards fit within viewport with no clipped columns."}
+  ],
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "CategorySection.jsx cleanly separates data (CATEGORIES export with slug=collectibles) from presentation (HOME_CATEGORIES maps collectibles->NFT). Downstream consumers (LiveAuctionsSection chip lookup) still resolve slug=collectibles->label='Collectibles' from CATEGORIES — correct.",
+    "LiveAuctionsSection empty-state branch: when search keyword is present it renders search-empty with 'No results found.' — matches spec exactly.",
+    "CreateAuction dynamic grid class: form.auctionType==='NFT' ? sm:grid-cols-2 : sm:grid-cols-3 keeps layout clean when Condition is hidden.",
+    "Anti-sniping input fully removed from the form; behavior preserved server-side (form.antiSniping default '10' still used in insert payload) — good.",
+    "Wallet.jsx warning is a single amber card with a concise sentence; no chain id sentence remains. Good.",
+    "Profile.jsx Balance card uses semantic label 'Balance' (span) and shows exact 'Monad Network Only' notice. My Wallet header replaces old 'Embedded Wallet' heading.",
+    "Non-blocking: on Create Auction the <select> option 'NFT — start from My Collection' contains a <span> inside <option> in the JSX; React logs a hydration console warning ('In HTML, <span> cannot be a child of <option>'). Cosmetic console noise, does not affect the UI or the tested spec — flagging for main agent's awareness only."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only)", "frontend": "100% (11/11 scenarios)"},
+  "test_credentials": "Used /app/memory/test_credentials.md Seller A. Supabase password-grant token installed under localStorage['sb-ialusnghydghsykekgeb-auth-token'] to reach authenticated Profile/Wallet/Collection/Create surfaces.",
+  "seed_data_creation": "None. No auctions created; searched for keyword 'Rolex' which produced the expected empty state.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All BIDZONE FINAL POLISH UI items are verified on the live preview. Auth trick still works: POST https://ialusnghydghsykekgeb.supabase.co/auth/v1/token?grant_type=password with anon apikey from /app/frontend/.env, write the token object into localStorage['sb-ialusnghydghsykekgeb-auth-token'], then reload. Home page requires an auth session for the real hero to appear on this build; unauthenticated visitors see a 'WELCOME TO BIDZONE' splash — install the session first, then wait for [data-testid=home-hero]. One minor React DOM warning exists in CreateAuction ('<span> cannot be a child of <option>') — cosmetic only.",
+  "rca of the issue": "N/A — all requested changes are implemented correctly."
+}
