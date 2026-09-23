@@ -92,10 +92,20 @@ export function AuthProvider({ children }) {
         queryFn: async () => {
             const { data, error } = await supabase
                 .from("profiles")
-                .select("id, username, display_name, avatar_url, reputation_score, wallet_address")
+                .select("id, username, display_name, avatar_url, reputation_score, wallet_address, is_admin")
                 .eq("id", user.id)
                 .maybeSingle();
-            if (error) throw error;
+            // is_admin is opt-in; missing column (fresh env before migration)
+            // must fail silently to false instead of breaking the profile query.
+            if (error && !/is_admin|column|schema/i.test(error.message || "")) throw error;
+            if (error) {
+                const { data: fallback } = await supabase
+                    .from("profiles")
+                    .select("id, username, display_name, avatar_url, reputation_score, wallet_address")
+                    .eq("id", user.id)
+                    .maybeSingle();
+                return fallback ? { ...fallback, is_admin: false } : null;
+            }
             return data || null;
         },
     });

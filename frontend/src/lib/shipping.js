@@ -202,11 +202,17 @@ export function useMySales(enabled = true) {
         enabled: Boolean(supabase) && enabled,
         queryFn: async () => {
             if (!supabase) return [];
-            // Sales = my auctions (public select) + their escrow/shipping rows
-            // (party-read RLS only returns rows where I am seller).
+            // Sales = ONLY auctions where the caller is the seller. Filtering
+            // here (instead of relying on party-RLS of escrow/shipping alone)
+            // eliminates the case where a buyer's auction rows leak into
+            // "My Sales" — the tab now strictly answers "what am I selling?".
+            const { data: authData } = await supabase.auth.getUser();
+            const uid = authData?.user?.id || null;
+            if (!uid) return [];
             const { data: auctions, error } = await supabase
                 .from("auctions")
                 .select(AUCTION_CARD_SELECT)
+                .eq("seller_id", uid)
                 .order("created_at", { ascending: false })
                 .limit(25);
             if (error) throw error;

@@ -7,6 +7,7 @@ import CreateAuction from "@/pages/CreateAuction";
 import AuthCallback from "@/pages/AuthCallback";
 import Wallet from "@/pages/Wallet";
 import Profile from "@/pages/Profile";
+import AdminDashboard from "@/pages/AdminDashboard";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { WalletProvider } from "@/context/WalletContext";
 import { Loader2 } from "lucide-react";
@@ -42,6 +43,7 @@ function App() {
                             <Route path="/create" element={<CreateAuction />} />
                             <Route path="/wallet" element={<Wallet />} />
                             <Route path="/profile" element={<Profile />} />
+                            <Route path="/admin" element={<AdminDashboard />} />
                             <Route path="/auth/callback" element={<AuthCallback />} />
                             <Route path="*" element={<Home />} />
                         </Routes>

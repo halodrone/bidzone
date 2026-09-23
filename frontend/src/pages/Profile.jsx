@@ -326,6 +326,21 @@ export default function Profile() {
 
                 {/* Phase 7 — MY ACTIVITY: bids, purchases (fulfillment) and sales */}
                 <MyActivity initialTab={searchParams.get("tab") || "purchases"} />
+
+                {/* Admin entry — rendered ONLY for is_admin profiles. Normal
+                    users never see this and the /admin route fails silently. */}
+                {profile?.is_admin && (
+                    <div className="pt-2">
+                        <Link
+                            to="/admin"
+                            data-testid="profile-admin-link"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-[hsl(var(--bz-purple)/0.45)] bg-[hsl(var(--bz-purple)/0.08)] px-4 py-2 text-[11px] font-semibold text-[hsl(var(--bz-purple))] hover:bg-[hsl(var(--bz-purple)/0.14)]"
+                        >
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            Admin Dashboard
+                        </Link>
+                    </div>
+                )}
             </main>
             <Footer />
         </div>

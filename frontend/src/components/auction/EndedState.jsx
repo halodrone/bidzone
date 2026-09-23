@@ -73,11 +73,11 @@ export function EndedState({ auction }) {
                 aria-hidden
                 className="pointer-events-none absolute -top-16 right-0 h-40 w-64 rounded-full bg-[hsl(var(--bz-purple)/0.35)] blur-3xl"
             />
-            <div className="relative flex items-start gap-4">
-                <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-[hsl(var(--bz-purple)/0.55)] bg-[hsl(var(--bz-purple)/0.14)]">
+            <div className="relative flex items-start gap-3 sm:gap-4">
+                <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[hsl(var(--bz-purple)/0.55)] bg-[hsl(var(--bz-purple)/0.14)]">
                     <Trophy className="h-5 w-5 text-[hsl(var(--bz-purple))]" />
                 </span>
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                     <h3 className="font-display text-xl font-semibold">
                         Auction won.
                     </h3>
