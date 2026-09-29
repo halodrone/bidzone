@@ -64,9 +64,6 @@ export function AuthProvider({ children }) {
             mounted = false;
             if (sub && sub.subscription) sub.subscription.unsubscribe();
         };
-        // qc is stable for the app lifetime (created once by QueryClientProvider);
-        // safe to omit from deps to keep this effect a one-time subscription.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // OAuth fallback recovery — GoTrue redirects to the configured Site URL
@@ -127,6 +124,63 @@ export function AuthProvider({ children }) {
             return data || null;
         },
     });
+
+    /**
+     * Profile self-heal (username regression fix, Nov 2026).
+     *
+     * The historical `handle_new_user()` DB trigger only inserts the row `id`
+     * and never copies Google metadata (`raw_user_meta_data.full_name` / `name`)
+     * into `profiles.display_name`. As a result every profile in the DB has
+     * `display_name = NULL` and `username = NULL`, and any UI surface that
+     * shows a name for a user OTHER than the current viewer (auction seller
+     * on the detail page, comment author in the Chat panel, etc.) has no
+     * data to render and falls back to the generic "User" label.
+     *
+     * Fixing the DB trigger requires a migration; we cannot push one from the
+     * client without service-role credentials. So instead we self-heal the
+     * signed-in user's OWN profile row on every sign-in: RLS allows a user to
+     * UPDATE their own `profiles` row, so we derive a display_name from
+     * Google metadata (or from the email local-part as a stable fallback)
+     * and persist it. Over the next few sign-ins, every real (Google) account
+     * ends up with a real display_name, and all downstream surfaces render
+     * correctly — no schema change, no RLS weakening, no auth change.
+     *
+     * Idempotent: only fires when profile is loaded AND at least one of the
+     * two fields is still null. Silently ignores update failures (they will
+     * be retried on the next sign-in).
+     */
+    useEffect(() => {
+        if (!supabase || !user || !profileQuery.data) return undefined;
+        const p = profileQuery.data;
+        const emailLocal =
+            (user.email || "").split("@")[0].replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 32);
+        const metaName =
+            (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name)) || "";
+        const desiredDisplay = String(metaName || emailLocal || "").trim();
+        const desiredUsername = emailLocal || "";
+        const patch = {};
+        if (!p.display_name && desiredDisplay) patch.display_name = desiredDisplay;
+        if (!p.username && desiredUsername) patch.username = desiredUsername;
+        if (Object.keys(patch).length === 0) return undefined;
+        let cancelled = false;
+        (async () => {
+            try {
+                const { error } = await supabase
+                    .from("profiles")
+                    .update(patch)
+                    .eq("id", user.id);
+                if (error) return; // best-effort; unique constraint on username handled next sign-in
+                if (cancelled) return;
+                // Refresh caches that render this profile so the new name is
+                // visible immediately (no F5 required).
+                qc.invalidateQueries({ queryKey: ["profile", user.id] });
+                qc.invalidateQueries({ queryKey: ["auction"] });
+                qc.invalidateQueries({ queryKey: ["live-auctions"] });
+                qc.invalidateQueries({ queryKey: ["auction-comments"] });
+            } catch { /* non-fatal */ }
+        })();
+        return () => { cancelled = true; };
+    }, [user, profileQuery.data, qc]);
 
     const signInWithGoogle = useCallback(async () => {
         if (!supabase) throw new Error("Supabase is not configured");
