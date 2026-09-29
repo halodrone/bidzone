@@ -30,6 +30,32 @@ export function displayName(user) {
     );
 }
 
+/**
+ * Username-first identity resolver for public/private UI surfaces.
+ * Mirrors AuctionCard's sellerUsername logic so seller identity, comment
+ * author identity, etc. are consistent across the app.
+ *
+ * Priority:
+ *   1. profiles.username           (user-chosen handle)
+ *   2. profiles.display_name       (Google display name, if set)
+ *   3. Own email local-part        (only if viewer IS this profile)
+ *   4. "User"                      (never wallet address, never @, never full email)
+ *
+ * NEVER falls back to wallet address, "Anonymous", or the raw email.
+ */
+export function usernameFor(user, viewer) {
+    const u = Array.isArray(user) ? user[0] || {} : user || {};
+    const viewerIsSelf = viewer && u && u.id && viewer.id && u.id === viewer.id;
+    const source =
+        u.username ||
+        u.display_name ||
+        u.email ||
+        (viewerIsSelf ? viewer.email : "") ||
+        "";
+    const cleaned = String(source || "").split("@")[0].trim();
+    return cleaned || "User";
+}
+
 /** Relative time — "just now", "2m ago", "3h ago", "yesterday", or a date. */
 export function timeAgo(iso) {
     if (!iso) return "";

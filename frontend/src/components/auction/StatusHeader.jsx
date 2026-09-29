@@ -1,6 +1,7 @@
 import { ShieldCheck, Radio, Package, Sparkles, Clock } from "lucide-react";
 import { CountdownTimer } from "@/components/home/CountdownTimer";
-import { displayName } from "@/components/auction/format";
+import { usernameFor } from "@/components/auction/format";
+import { useAuth } from "@/context/AuthContext";
 
 const STATUS_STYLES = {
     LIVE: {
@@ -34,10 +35,12 @@ const STATUS_STYLES = {
 };
 
 export function StatusHeader({ auction }) {
+    const { user } = useAuth();
     if (!auction) return null;
     const seller = auction.seller || {};
     const isVerified = (seller.reputation_score ?? 0) >= 50;
     const status = STATUS_STYLES[auction.status] || STATUS_STYLES.LIVE;
+    const sellerLabel = usernameFor(seller, user);
 
     return (
         <section
@@ -103,7 +106,7 @@ export function StatusHeader({ auction }) {
                                 />
                             ) : (
                                 <div className="h-full w-full flex items-center justify-center text-xs text-white/60">
-                                    {(displayName(seller) || "?").slice(0, 1).toUpperCase()}
+                                    {sellerLabel.slice(0, 1).toUpperCase()}
                                 </div>
                             )}
                         </div>
@@ -113,9 +116,9 @@ export function StatusHeader({ auction }) {
                             </div>
                             <div
                                 data-testid="auction-seller-name"
-                                className="text-sm font-medium text-white"
+                                className="text-sm font-medium text-white truncate max-w-[180px] sm:max-w-none"
                             >
-                                {displayName(seller)}
+                                {sellerLabel}
                             </div>
                         </div>
                     </div>

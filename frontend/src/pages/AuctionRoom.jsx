@@ -11,9 +11,7 @@ import { BiddingPanel } from "@/components/auction/BiddingPanel";
 import { AuctionInfo } from "@/components/auction/AuctionInfo";
 import { BidHistory } from "@/components/auction/BidHistory";
 import { PriceChart } from "@/components/auction/PriceChart";
-import { ActivityFeed } from "@/components/auction/ActivityFeed";
 import { CommentsPanel } from "@/components/auction/CommentsPanel";
-import { ReactionsBar } from "@/components/auction/ReactionsBar";
 import { NftPanel } from "@/components/auction/NftPanel";
 import { NotFound } from "@/components/auction/NotFound";
 import { EndedState } from "@/components/auction/EndedState";
@@ -73,11 +71,6 @@ export default function AuctionRoom() {
 
                             {/* Social  (right on desktop) */}
                             <div className="order-3 flex flex-col gap-6 lg:col-span-3">
-                                <ReactionsBar auctionId={auction.id} />
-                                <ActivityFeed
-                                    auctionId={auction.id}
-                                    auctionStatus={auction.status}
-                                />
                                 <CommentsPanel auctionId={auction.id} />
                             </div>
                         </div>

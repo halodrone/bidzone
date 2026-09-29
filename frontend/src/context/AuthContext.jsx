@@ -41,14 +41,32 @@ export function AuthProvider({ children }) {
             setInitialized(true);
         });
 
-        const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+        const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
             setSession(s || null);
+            // CRITICAL cache isolation: on any auth transition (sign-in,
+            // sign-out, token refresh with a different subject, user switch),
+            // wipe every react-query cache. The safer alternative — invalidating
+            // by known key prefixes — is fragile: any user-scoped query that
+            // slipped in without a user id in its key would leak the previous
+            // user's rows into the new user's view (the reported My Activity
+            // isolation bug). Full reset is O(cache-size) and only runs on
+            // auth transitions, so cost is negligible.
+            if (event === "SIGNED_OUT" || event === "SIGNED_IN" || event === "USER_UPDATED") {
+                try {
+                    qc.removeQueries();
+                } catch {
+                    /* non-fatal */
+                }
+            }
         });
 
         return () => {
             mounted = false;
             if (sub && sub.subscription) sub.subscription.unsubscribe();
         };
+        // qc is stable for the app lifetime (created once by QueryClientProvider);
+        // safe to omit from deps to keep this effect a one-time subscription.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // OAuth fallback recovery — GoTrue redirects to the configured Site URL
@@ -140,7 +158,13 @@ export function AuthProvider({ children }) {
     const signOut = useCallback(async () => {
         if (!supabase) return;
         await supabase.auth.signOut();
-        qc.removeQueries({ queryKey: ["profile"] });
+        // Nuke every cached query so no previous-user data can be re-rendered
+        // between the signOut resolution and the next SIGNED_OUT event.
+        try {
+            qc.removeQueries();
+        } catch {
+            /* non-fatal */
+        }
     }, [qc]);
 
     const openAuthModal = useCallback((opts) => {

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { REACT_APP_BACKEND_URL } from "./backendUrl";
+import { useAuth } from "@/context/AuthContext";
 
 /**
  * BIDZONE Phase 7 — Physical auction fulfillment helpers.
@@ -92,14 +93,17 @@ export function feeBreakdown(amount) {
 /* Addresses (existing private table)                                 */
 /* ------------------------------------------------------------------ */
 export function useMyAddresses() {
+    const { user } = useAuth();
+    const uid = user?.id || null;
     return useQuery({
-        queryKey: ["my-addresses"],
-        enabled: Boolean(supabase),
+        queryKey: ["my-addresses", uid],
+        enabled: Boolean(supabase) && Boolean(uid),
         queryFn: async () => {
-            if (!supabase) return [];
+            if (!supabase || !uid) return [];
             const { data, error } = await supabase
                 .from("addresses")
                 .select("*")
+                .eq("user_id", uid)
                 .order("created_at", { ascending: false });
             if (error) throw error;
             return data ?? [];
@@ -145,17 +149,25 @@ async function readShippingForAuctionIds(ids) {
 
 
 export function useMyBids(enabled = true) {
+    const { user } = useAuth();
+    const uid = user?.id || null;
     return useQuery({
-        queryKey: ["my-activity-bids"],
-        enabled: Boolean(supabase) && enabled,
+        queryKey: ["my-activity-bids", uid],
+        enabled: Boolean(supabase) && enabled && Boolean(uid),
         queryFn: async () => {
-            if (!supabase) return [];
+            if (!supabase || !uid) return [];
+            // CRITICAL: scope to the currently authenticated user. The `bids`
+            // table has public SELECT (needed for public bid history on the
+            // auction room); without this explicit filter, "My Bids" leaked
+            // every bidder's rows into the current viewer. Fixes the reported
+            // "User B sees User A's activity after login" isolation bug.
             const { data, error } = await supabase
                 .from("bids")
                 .select(
                     `id, amount, status, created_at, transaction_hash, auction_id,
                      auction:auctions ( ${AUCTION_CARD_SELECT} )`
                 )
+                .eq("bidder_id", uid)
                 .order("created_at", { ascending: false })
                 .limit(25);
             if (error) throw error;
@@ -165,14 +177,28 @@ export function useMyBids(enabled = true) {
 }
 
 export function useMyPurchases(enabled = true) {
+    const { user } = useAuth();
+    const uid = user?.id || null;
     return useQuery({
-        queryKey: ["my-activity-purchases"],
-        enabled: Boolean(supabase) && enabled,
+        queryKey: ["my-activity-purchases", uid],
+        enabled: Boolean(supabase) && enabled && Boolean(uid),
         queryFn: async () => {
-            if (!supabase) return [];
-            // Purchases = my escrow rows (party-read RLS). shipping rows are
-            // fetched separately (no direct FK between escrow_transactions and
-            // shipping) and stitched by auction_id.
+            if (!supabase || !uid) return [];
+            // Purchases = escrow rows the current user is a party to. Server
+            // RLS already restricts reads to party-role rows, but the extra
+            // client-side scoping via my winning bids guarantees "My
+            // Purchases" cannot show another user's escrow rows even if the
+            // read path ever loosens.
+            const { data: myWinningBids, error: bidsErr } = await supabase
+                .from("bids")
+                .select("auction_id")
+                .eq("bidder_id", uid)
+                .eq("status", "WINNING");
+            if (bidsErr) throw bidsErr;
+            const winningAuctionIds = Array.from(
+                new Set((myWinningBids ?? []).map((r) => r.auction_id).filter(Boolean))
+            );
+            if (winningAuctionIds.length === 0) return [];
             const { data: escrows, error } = await supabase
                 .from("escrow_transactions")
                 .select(
@@ -180,6 +206,7 @@ export function useMyPurchases(enabled = true) {
                      confirmation_deadline, released_at, refunded_at,
                      auction:auctions ( ${AUCTION_CARD_SELECT} )`
                 )
+                .in("auction_id", winningAuctionIds)
                 .order("created_at", { ascending: false })
                 .limit(25);
             if (error) throw error;
@@ -197,18 +224,17 @@ export function useMyPurchases(enabled = true) {
 }
 
 export function useMySales(enabled = true) {
+    const { user } = useAuth();
+    const uid = user?.id || null;
     return useQuery({
-        queryKey: ["my-activity-sales"],
-        enabled: Boolean(supabase) && enabled,
+        queryKey: ["my-activity-sales", uid],
+        enabled: Boolean(supabase) && enabled && Boolean(uid),
         queryFn: async () => {
-            if (!supabase) return [];
+            if (!supabase || !uid) return [];
             // Sales = ONLY auctions where the caller is the seller. Filtering
             // here (instead of relying on party-RLS of escrow/shipping alone)
             // eliminates the case where a buyer's auction rows leak into
             // "My Sales" — the tab now strictly answers "what am I selling?".
-            const { data: authData } = await supabase.auth.getUser();
-            const uid = authData?.user?.id || null;
-            if (!uid) return [];
             const { data: auctions, error } = await supabase
                 .from("auctions")
                 .select(AUCTION_CARD_SELECT)
